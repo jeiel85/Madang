@@ -1,4 +1,4 @@
-// Deskland · 桌面宿主（原型）
+// Madang · 桌面宿主（原型）
 //
 // 做四件事：
 //   1. 把一个无边框窗口挂到桌面图标下面（壁纸层），里面用 WebView2 显示当前主题的页面（如 prototype/flat.html?wallpaper=1）
@@ -27,9 +27,9 @@ using Microsoft.Win32;
 
 static class Program
 {
-    public static readonly string ExitEventName = "DesklandHost_Exit" + InstallProfile.Suffix;
-    public static readonly string MenuEventName = "DesklandHost_Menu" + InstallProfile.Suffix;
-    public static readonly string SettingsEventName = "DesklandHost_Settings" + InstallProfile.Suffix;
+    public static readonly string ExitEventName = "MadangHost_Exit" + InstallProfile.Suffix;
+    public static readonly string MenuEventName = "MadangHost_Menu" + InstallProfile.Suffix;
+    public static readonly string SettingsEventName = "MadangHost_Settings" + InstallProfile.Suffix;
 
     // 通知正在运行的实例（退出 / 弹出菜单）
     static void Signal(string name)
@@ -42,18 +42,18 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
-        // Deskland.exe --exit ：通知正在运行的实例正常退出（恢复原壁纸）
-        // Deskland.exe --menu ：让正在运行的实例在鼠标位置弹出菜单
-        // Deskland.exe --settings ：让正在运行的实例打开设置窗口
+        // Madang.exe --exit ：通知正在运行的实例正常退出（恢复原壁纸）
+        // Madang.exe --menu ：让正在运行的实例在鼠标位置弹出菜单
+        // Madang.exe --settings ：让正在运行的实例打开设置窗口
         if (args.Length > 0 && args[0] == "--exit") { Signal(ExitEventName); return; }
         if (args.Length > 0 && args[0] == "--menu") { Signal(MenuEventName); return; }
         if (args.Length > 0 && args[0] == "--settings") { Signal(SettingsEventName); return; }
         if (args.Length > 0 && args[0] == "--exit-installed") { Environment.ExitCode = InstallProfile.StopInstalled(); return; }
-        // Preview never migrates or shares the development edition's settings.                                 // 老名字（Habitat Wallpaper）下的数据目录、开机自启项搬过来
+        // Madang never migrates or shares settings from Deskland editions.                                 // 老名字（Habitat Wallpaper）下的数据目录、开机自启项搬过来
         bool fromAutostart = Array.IndexOf(args, "--autostart") >= 0;
         if (fromAutostart) AutoStartCheck.MarkLaunched();  // 开机自启跑起来了（不管后面是不是已经在运行）
         bool created;
-        var mutex = new Mutex(true, "DesklandHost_Singleton" + InstallProfile.Suffix, out created);
+        var mutex = new Mutex(true, "MadangHost_Singleton" + InstallProfile.Suffix, out created);
         if (!created)
         {
             if (!fromAutostart) Signal(SettingsEventName); // 已经在运行：再次双击程序 = 打开设置（开机自启那次就悄悄退出）
@@ -210,7 +210,7 @@ static class Json
 }
 
 // 用户设置：当前主题 + 每个主题的参数（只存用户改过的，没改过的用主题默认值）
-// 保存在 %LOCALAPPDATA%\Deskland\settings.json
+// 保存在 %LOCALAPPDATA%\Madang\settings.json
 static class Settings
 {
     static readonly string FilePath = Path.Combine(Log.DataDir, "settings.json");
@@ -261,7 +261,7 @@ static class Settings
 // 设置里的"语言"默认"跟随系统"：用 Windows 的界面语言；不支持的语言用英文
 static class I18n
 {
-    // 增加语言时同步设置页 LANGS 与体验版导出的语言列表。
+    // 增加语言时同步设置页 LANGS 与安装包文件列表。
     public static readonly string[] Supported = { "zh-CN", "en" };
     public static string Code = "zh-CN", Sys = "en";     // 现在用的语言；"跟随系统"时会用的语言
     static Dictionary<string, object> cur, en, zh;
@@ -312,7 +312,7 @@ static class I18n
 // 打开设置的方式：双击程序（没运行就先启动再打开）、双击托盘图标、菜单 → 设置…（或 --settings）
 class HostContext : ApplicationContext
 {
-    public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run", RunName = "DesklandPreview";
+    public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run", RunName = "Madang";
     static readonly MethodInfo ShowTrayMenu =
         typeof(NotifyIcon).GetMethod("ShowContextMenu", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -375,7 +375,7 @@ class HostContext : ApplicationContext
 
         tray = new NotifyIcon();
         tray.Icon = AppIcon.Create();
-        tray.Text = "Deskland Preview";
+        tray.Text = "Madang";
         tray.ContextMenu = new ContextMenu(new[] {
             settingsItem,
             pauseItem,
@@ -543,9 +543,6 @@ class HostContext : ApplicationContext
             case "openShare":
                 if (lastShare != null && File.Exists(lastShare)) Process.Start(lastShare);
                 break;
-            case "openWebsite":
-                Process.Start("https://deskland.app/");
-                break;
             case "revealShare":
                 if (lastShare != null && File.Exists(lastShare)) Process.Start("explorer.exe", "/select,\"" + lastShare + "\"");
                 break;
@@ -559,7 +556,7 @@ class HostContext : ApplicationContext
         }
     }
 
-    // ---- 一键分享：壁纸页面画好的图 → 存到"图片\Deskland"，复制到剪贴板，缩略图发回设置页 ----
+    // ---- 一键分享：壁纸页面画好的图 → 存到"图片\Madang"，复制到剪贴板，缩略图发回设置页 ----
     string lastShare;                                   // 最近一张分享图的路径（设置页只能让我们打开这一张）
     void OnShareImage(string thumb, string png, string err)
     {
@@ -568,9 +565,9 @@ class HostContext : ApplicationContext
         {
             int comma = png.IndexOf(',');
             byte[] bytes = Convert.FromBase64String(comma >= 0 ? png.Substring(comma + 1) : png);
-            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Deskland Preview");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Madang");
             Directory.CreateDirectory(dir);
-            string path = Path.Combine(dir, "Deskland " + DateTime.Now.ToString("yyyy-MM-dd HHmmss") + ".png");
+            string path = Path.Combine(dir, "Madang " + DateTime.Now.ToString("yyyy-MM-dd HHmmss") + ".png");
             File.WriteAllBytes(path, bytes);
             lastShare = path;
             try
@@ -608,9 +605,9 @@ class HostContext : ApplicationContext
         {
             int comma = video.IndexOf(',');
             byte[] bytes = Convert.FromBase64String(comma >= 0 ? video.Substring(comma + 1) : video);
-            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Deskland Preview");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Madang");
             Directory.CreateDirectory(dir);
-            string name = "Deskland " + DateTime.Now.ToString("yyyy-MM-dd HHmmss") + (mime == "video/webm" ? ".webm" : ".mp4");
+            string name = "Madang " + DateTime.Now.ToString("yyyy-MM-dd HHmmss") + (mime == "video/webm" ? ".webm" : ".mp4");
             string path = Path.Combine(dir, name);
             File.WriteAllBytes(path, bytes);
             lastShare = path;
@@ -663,7 +660,7 @@ class HostContext : ApplicationContext
     // 不使用需要额外权限的任务计划；快捷方式创建失败时仍保留 Run 项作为回退。
     static string AutoStartShortcutPath
     {
-        get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Deskland.lnk"); }
+        get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Madang.lnk"); }
     }
 
     static object OpenAutoStartShortcut()
@@ -710,7 +707,7 @@ class HostContext : ApplicationContext
             link.GetType().InvokeMember("IconLocation", BindingFlags.SetProperty,
                 null, link, new object[] { Application.ExecutablePath + ",0" });
             link.GetType().InvokeMember("Description", BindingFlags.SetProperty,
-                null, link, new object[] { "Deskland" });
+                null, link, new object[] { "Madang" });
             link.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
             return File.Exists(AutoStartShortcutPath);
         }
@@ -800,7 +797,7 @@ class HostContext : ApplicationContext
         if (restarts.Count > 5)
         {
             Log.Write("壁纸窗口 1 分钟内被销毁超过 5 次，停止重试");
-            MessageBox.Show(I18n.T("errRebuilt") + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Deskland Preview");
+            MessageBox.Show(I18n.T("errRebuilt") + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Madang");
             Exit();
             return;
         }
@@ -866,12 +863,12 @@ class HotkeyWindow : NativeWindow, IDisposable
     }
 }
 
-// 托盘和设置窗口共用 Deskland 图标；构建脚本会把图标复制到程序目录。
+// 托盘和设置窗口共用 Madang 图标；构建脚本会把图标复制到程序目录。
 static class AppIcon
 {
     public static Icon Create()
     {
-        return new Icon(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DesklandPreview.ico"));
+        return new Icon(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Madang.ico"));
     }
 
     static GraphicsPath RoundRect(Rectangle r, int radius)
@@ -898,8 +895,8 @@ class SettingsForm : Form
     {
         this.pageDir = pageDir;
         this.host = host;
-        Text = "Deskland Preview";
-        AccessibleName = "Deskland Preview";
+        Text = "Madang";
+        AccessibleName = "Madang";
         ShowIcon = true;
         Icon = AppIcon.Create();
         StartPosition = FormStartPosition.CenterScreen;
@@ -963,7 +960,7 @@ class SettingsForm : Form
         catch (Exception ex)
         {
             Log.Write("设置窗口启动失败：" + ex);
-            MessageBox.Show(I18n.T("errSettings", "msg", ex.Message), "Deskland Preview");
+            MessageBox.Show(I18n.T("errSettings", "msg", ex.Message), "Madang");
             Close();
         }
     }
@@ -1014,7 +1011,7 @@ class WallpaperForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.FromArgb(26, 163, 196);
-        Text = "DesklandWindow";
+        Text = "MadangWindow";
 
         web = new WebView2();
         web.Dock = DockStyle.Fill;
@@ -1180,7 +1177,7 @@ class WallpaperForm : Form
     void Fail(string msg)
     {
         Log.Write(msg);
-        MessageBox.Show(msg + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Deskland Preview");
+        MessageBox.Show(msg + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Madang");
         Fatal = true;
         Shutdown();
     }
@@ -1526,25 +1523,25 @@ static class Native
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, out RECT buf, int size, out IntPtr read);
 }
 
-// Deskland Preview has its own data and instance identity; isolated profiles support installation QA.
+// Madang has its own data and instance identity; isolated profiles support installation QA.
 static class InstallProfile
 {
-    public static readonly string Override = Environment.GetEnvironmentVariable("DESKLAND_PROFILE_DIR");
+    public static readonly string Override = Environment.GetEnvironmentVariable("MADANG_PROFILE_DIR");
     public static readonly bool Isolated = !string.IsNullOrEmpty(Override);
     public static readonly string DataDir = Isolated ? Path.GetFullPath(Override) : Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DesklandPreview");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Madang");
     public static readonly string Suffix = MakeSuffix();
     static string MakeSuffix()
     {
-        if (!Isolated) return "_Preview";
+        if (!Isolated) return "";
         using (var hash = System.Security.Cryptography.SHA256.Create())
-            return "_Preview_" + BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(DataDir.ToUpperInvariant()))).Replace("-", "").Substring(0, 24);
+            return "_" + BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(DataDir.ToUpperInvariant()))).Replace("-", "").Substring(0, 24);
     }
 
     // An installer may only close the instance using this exact executable path.
     public static int StopInstalled()
     {
-        foreach (Process process in Process.GetProcessesByName("Deskland"))
+        foreach (Process process in Process.GetProcessesByName("Madang"))
         {
             using (process)
             {

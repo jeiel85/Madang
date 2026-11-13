@@ -6,24 +6,24 @@
 !include "FileFunc.nsh"
 !include "StrFunc.nsh"
 ${UnStrStr}
-Name "Deskland Preview"
+Name "Madang"
 OutFile "${OUTPUT}"
-InstallDir "$LOCALAPPDATA\Programs\Deskland Preview"
-InstallDirRegKey HKCU "Software\DesklandPreview\Installer" "InstallDir"
+InstallDir "$LOCALAPPDATA\Programs\Madang"
+InstallDirRegKey HKCU "Software\Madang\Installer" "InstallDir"
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-BrandingText "Deskland Preview"
+BrandingText "Madang"
 VIProductVersion "${VERSION}.0"
-VIAddVersionKey /LANG=1033 "ProductName" "Deskland Preview"
-VIAddVersionKey /LANG=1033 "FileDescription" "Deskland Preview Installer"
+VIAddVersionKey /LANG=1033 "ProductName" "Madang"
+VIAddVersionKey /LANG=1033 "FileDescription" "Madang Installer"
 VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
-VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 Deskland authors"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 Deskland authors and Madang contributors"
 !define MUI_ABORTWARNING
-!define MUI_ICON "${PAYLOAD}\host\bin\DesklandPreview.ico"
-!define MUI_UNICON "${PAYLOAD}\host\bin\DesklandPreview.ico"
-!define MUI_FINISHPAGE_RUN "$INSTDIR\host\bin\Deskland.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "$(LaunchDeskland)"
+!define MUI_ICON "${PAYLOAD}\host\bin\Madang.ico"
+!define MUI_UNICON "${PAYLOAD}\host\bin\Madang.ico"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\host\bin\Madang.exe"
+!define MUI_FINISHPAGE_RUN_TEXT "$(LaunchApp)"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${PAYLOAD}\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
@@ -34,16 +34,16 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 Deskland authors"
 !insertmacro MUI_UNPAGE_FINISH
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
-LangString LaunchDeskland ${LANG_SIMPCHINESE} "启动 Deskland Preview"
-LangString LaunchDeskland ${LANG_ENGLISH} "Launch Deskland Preview"
-LangString AppFiles ${LANG_SIMPCHINESE} "Deskland Preview 体验版（沙滩和草地）"
-LangString AppFiles ${LANG_ENGLISH} "Deskland Preview (Beach and Meadow)"
+LangString LaunchApp ${LANG_SIMPCHINESE} "启动 Madang"
+LangString LaunchApp ${LANG_ENGLISH} "Launch Madang"
+LangString AppFiles ${LANG_SIMPCHINESE} "Madang（沙滩和草地）"
+LangString AppFiles ${LANG_ENGLISH} "Madang (Beach and Meadow)"
 LangString DesktopShortcut ${LANG_SIMPCHINESE} "桌面快捷方式"
 LangString DesktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
 LangString NeedX64 ${LANG_SIMPCHINESE} "需要 64 位 Windows 10 或更高版本。"
 LangString NeedX64 ${LANG_ENGLISH} "64-bit Windows 10 or later is required."
-LangString CloseFailed ${LANG_SIMPCHINESE} "请退出正在运行的 Deskland Preview 后重试。"
-LangString CloseFailed ${LANG_ENGLISH} "Please exit Deskland Preview and retry."
+LangString CloseFailed ${LANG_SIMPCHINESE} "请退出正在运行的 Madang 后重试。"
+LangString CloseFailed ${LANG_ENGLISH} "Please exit Madang and retry."
 LangString RuntimeFailed ${LANG_SIMPCHINESE} "WebView2 安装未完成。请连接网络，安装 Microsoft Edge WebView2 Runtime 后重试。"
 LangString RuntimeFailed ${LANG_ENGLISH} "WebView2 setup did not complete. Connect to the internet, install Microsoft Edge WebView2 Runtime, and retry."
 LangString InstallingRuntime ${LANG_SIMPCHINESE} "正在安装 Microsoft Edge WebView2 Runtime（需要联网）..."
@@ -96,8 +96,8 @@ Section "$(AppFiles)" SecApp
       Abort
     ${EndIf}
   ${EndIf}
-  IfFileExists "$INSTDIR\host\bin\Deskland.exe" 0 closed
-  ExecWait '"$INSTDIR\host\bin\Deskland.exe" --exit-installed' $0
+  IfFileExists "$INSTDIR\host\bin\Madang.exe" 0 closed
+  ExecWait '"$INSTDIR\host\bin\Madang.exe" --exit-installed' $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "$(CloseFailed)"
     SetErrorLevel 3
@@ -106,21 +106,21 @@ Section "$(AppFiles)" SecApp
   closed:
   !include "${FILE_LIST}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  CreateDirectory "$SMPROGRAMS\Deskland Preview"
-  CreateShortcut "$SMPROGRAMS\Deskland Preview\Deskland Preview.lnk" "$INSTDIR\host\bin\Deskland.exe"
-  CreateShortcut "$SMPROGRAMS\Deskland Preview\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKCU "Software\DesklandPreview\Installer" "InstallDir" "$INSTDIR"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "DisplayName" "Deskland Preview"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "Publisher" "Deskland"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "DisplayIcon" "$INSTDIR\host\bin\Deskland.exe"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "NoModify" 1
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "NoRepair" 1
+  CreateDirectory "$SMPROGRAMS\Madang"
+  CreateShortcut "$SMPROGRAMS\Madang\Madang.lnk" "$INSTDIR\host\bin\Madang.exe"
+  CreateShortcut "$SMPROGRAMS\Madang\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKCU "Software\Madang\Installer" "InstallDir" "$INSTDIR"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "DisplayName" "Madang"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "Publisher" "Madang"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "DisplayIcon" "$INSTDIR\host\bin\Madang.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "NoModify" 1
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "NoRepair" 1
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview" "EstimatedSize" $0
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang" "EstimatedSize" $0
 SectionEnd
 
 Function un.onInit
@@ -128,25 +128,25 @@ Function un.onInit
   SetRegView 64
 FunctionEnd
 Section "Uninstall"
-  IfFileExists "$INSTDIR\host\bin\Deskland.exe" 0 unclosed
-  ExecWait '"$INSTDIR\host\bin\Deskland.exe" --exit-installed' $0
+  IfFileExists "$INSTDIR\host\bin\Madang.exe" 0 unclosed
+  ExecWait '"$INSTDIR\host\bin\Madang.exe" --exit-installed' $0
   ${If} $0 != 0
     MessageBox MB_ICONSTOP "$(CloseFailed)"
     SetErrorLevel 3
     Abort
   ${EndIf}
   unclosed:
-  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "DesklandPreview"
-  ${UnStrStr} $1 $0 '$\"$INSTDIR\host\bin\Deskland.exe$\"'
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Madang"
+  ${UnStrStr} $1 $0 '$\"$INSTDIR\host\bin\Madang.exe$\"'
   ${If} $1 != ""
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "DesklandPreview"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Madang"
   ${EndIf}
   !include "${DELETE_LIST}"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
-  Delete "$SMPROGRAMS\Deskland Preview\Deskland Preview.lnk"
-  Delete "$SMPROGRAMS\Deskland Preview\Uninstall.lnk"
-  RMDir "$SMPROGRAMS\Deskland Preview"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\DesklandPreview"
-  DeleteRegKey HKCU "Software\DesklandPreview\Installer"
+  Delete "$SMPROGRAMS\Madang\Madang.lnk"
+  Delete "$SMPROGRAMS\Madang\Uninstall.lnk"
+  RMDir "$SMPROGRAMS\Madang"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang"
+  DeleteRegKey HKCU "Software\Madang\Installer"
 SectionEnd

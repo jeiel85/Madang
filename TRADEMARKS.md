@@ -1,7 +1,11 @@
-# 名称与图标 / Name and icon
+# 이름과 아이콘 / Name and icon
 
-GPL-3.0 授权适用于本仓库的项目源码与随附主题素材，不授予 Deskland 名称、标识或程序图标的商标使用权。
+Madang은 Deskland Preview를 바탕으로 한 독립 프로젝트이며, Deskland 원작자와 관계가 없고 승인이나 보증을 받지 않았습니다.
+"Deskland" 이름과 원작 아이콘은 원작자에게 있으며 GPL-3.0으로 허락되지 않습니다. 이 저장소는 출처를 밝히는 목적으로만 Deskland 이름을 씁니다.
 
-介绍本项目或注明来源时可以使用 Deskland 名称。发布修改版时请使用自己的产品名称和图标，并清楚标明它与本项目的关系，避免暗示官方发布、认可或背书。
+GPL-3.0은 Madang 이름이나 아이콘의 상표 사용권을 주지 않습니다. 프로젝트를 소개하거나 출처를 밝힐 때는 Madang 이름을 써도 됩니다. 수정판을 배포할 때는 자신의 제품 이름과 아이콘을 쓰고, 이 프로젝트와의 관계를 분명히 밝혀 주세요.
 
-The GPL-3.0 license for this repository does not grant trademark rights to the Deskland name, logo or application icon. You may use the name to identify this project and give attribution. Modified distributions should use their own product name and icon and clearly state their relationship to this project, without implying official endorsement.
+Madang is an independent project based on Deskland Preview. It is not affiliated with, approved or endorsed by the Deskland authors.
+The Deskland name and its original icon belong to their owners and are not licensed under GPL-3.0; this repository uses the Deskland name only for attribution.
+
+The GPL-3.0 license does not grant trademark rights to the Madang name or icon. You may use the name to identify this project and give attribution. Modified distributions should use their own product name and icon and clearly state their relationship to this project.

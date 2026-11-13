@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deskland · 草地（原型）</title>
+<title>Madang · 草地（原型）</title>
 <!--
-  Deskland · 草地主题原型（俯视；纯 WebGL2，2D，每帧直接计算）
+  Madang · 草地主题原型（俯视；纯 WebGL2，2D，每帧直接计算）
   画风参考：钢笔淡彩的插画——黄绿色的草地上一簇簇墨绿的短线，大朵的云飘在上空，云影是一块块深绿
   - 图标在云里：云和大海主题完全一样（同一个场、同一套圆），草地上还零星飘着几朵云，整朵随风飘
   - 草地：大块的水彩晕染 + 纸的颗粒；一片片平行的短线画草（疏密跟着区域变）；几道很淡的长线像起伏的地势
@@ -118,7 +118,7 @@
 
 <aside id="panel">
   <header>
-    <div><b>Deskland</b><span>草地 · 原型</span></div>
+    <div><b>Madang</b><span>草地 · 原型</span></div>
     <div><button class="ibtn" id="collapse" title="折叠">–</button></div>
   </header>
   <div class="body">
@@ -1077,7 +1077,7 @@ requestAnimationFrame(frame);
 
 /* ======================================================================
    托管模式：画面由外部驱动
-   - 壁纸模式（?wallpaper=1）：桌面宿主 host/Deskland.exe 通过 WebView2 发消息
+   - 壁纸模式（?wallpaper=1）：桌面宿主 host/Madang.exe 通过 WebView2 发消息
    - 预览模式（?preview=1）：设置窗口（settings.html）通过 iframe 的 postMessage 发消息
    消息：icons（真实图标矩形，物理像素）/ settings（参数，部分更新）/ reset（恢复默认）/ pause
    ====================================================================== */
