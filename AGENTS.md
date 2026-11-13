@@ -2,7 +2,7 @@
 
 - 프로젝트 책임자(사수님)와는 한국어로 소통한다.
 - Madang은 Deskland Preview 0.1.3(BLEZZ0102/Deskland, GPL-3.0)을 2026-11-13에 포크한 독립 프로젝트다. Deskland 원작자와 관계가 없으며, 공식 관계를 암시하는 표현을 쓰지 않는다.
-- 저장소: `origin` = jeiel85/Madang(공개). `upstream` = BLEZZ0102/Deskland는 수정을 가져오는 용도로만 쓰고, 통째로 병합하지 말고 필요한 커밋만 골라(cherry-pick) 가져온다. `deskland-fork` = 예전 포크 jeiel85/Deskland.
+- 저장소: `origin` = jeiel85/Madang(공개). `upstream` = BLEZZ0102/Deskland는 수정을 가져오는 용도로만 쓰고, 통째로 병합하지 말고 필요한 커밋만 골라(cherry-pick) 가져온다. `deskland-fork` = 예전 포크 jeiel85/Deskland(2026-11-13 보관 처리, 읽기 전용).
 
 ## 이름과 식별자
 
