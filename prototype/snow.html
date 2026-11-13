@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madang · 初雪</title>
+<!--
+  Madang · 첫눈 내린 마당 (2D 캔버스, 위에서 내려다본 마당)
+  - 흙마당에 첫눈이 얇게 깔렸다(얼마나 덮였는지는 설정). 아이콘 둘레에는 눈더미가 소복이 쌓인다
+  - 빛은 왼쪽 위에서: 눈더미 왼쪽 위 가장자리는 밝고, 오른쪽 아래는 푸른 그늘과 그림자
+  - 아이콘이 적은 곳에 눈사람과 장독대, 마당을 가로지르는 사람·고양이 발자국
+  - 바람에 흔들리며 내리는 눈송이
+  성능: 아이콘과 무관한 마당(bg) → 눈더미·소품을 더한 정적 그림(stat)을 캐시한다.
+        눈송이가 있을 때만 매 프레임 stat을 한 번 깔고 눈송이를 그린다. 아이콘이 바뀌면 교차 페이드.
+        노이즈는 1/4 해상도 격자로 시드·화면 크기마다 한 번만 계산해 두고, 설정이 바뀌면 다시 섞기만 한다.
+  share.js가 쓰는 전역: cv, draw(), icons, W, H, WALL, TASKBAR, commit(), paused, frameN, cacheOK
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #6f655c; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.ghosts #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(255,255,255,.9); box-shadow: 3px 6px 8px rgba(40,50,80,.3); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.8); }
+  #hint { position: fixed; left: 12px; bottom: 60px; color: rgba(255,255,255,.8); font: 12px/1.5 "Segoe UI", "Malgun Gothic", sans-serif;
+    text-shadow: 0 1px 2px rgba(0,0,0,.6); display: none; }
+  body.demo #hint { display: block; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="ghosts"></div>
+<div id="hint">R 새로 그리기 · S 눈사람 · J 장독대 · T 발자국 · 아이콘 끌어서 옮기기</div>
+<script>
+'use strict';
+
+/* ======================================================================
+   설정
+   ====================================================================== */
+const TASKBAR = 48;
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has('wallpaper');        // 바탕화면 호스트가 불러옴
+const PREVIEW = QS.has('preview');       // 설정 창의 미리보기(iframe)
+const SEED_OFF = (+QS.get('monitor') || 0) * 7919;   // 모니터마다 다른 풍경: 호스트가 보조 모니터 창에 monitor=1,2…를 붙인다
+// 기본값은 themes.json의 default와 같아야 한다. quality·cap30은 설정에 내보내지 않는다
+const P = {
+  drift: 70, snowfall: 0.6, wind: 0.3, cover: 0.45,
+  showSnowman: 1, showJars: 1, showTracks: 1, adaptive: 1,
+  quality: 2, cap30: true,
+};
+const DEFAULTS = Object.assign({}, P);
+const SLIDER_KEYS = ['drift', 'snowfall', 'wind', 'cover'];
+const DISPLAY_KEYS = ['showSnowman', 'showJars', 'showTracks', 'adaptive'];
+const BG_KEYS = ['cover'];                                   // 마당(bg)을 다시 그려야 하는 값
+const ICON_KEYS = ['drift', 'showSnowman', 'showJars', 'showTracks', 'adaptive'];
+const LIGHT = [-0.6, -0.8];                                  // 빛이 오는 쪽(왼쪽 위)
+
+/* ======================================================================
+   난수·노이즈
+   ====================================================================== */
+let seed = (Math.random() * 1e6) | 0;
+function hash2(x, y, k = 0) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed + k, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, k = 0) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, k), b = hash2(ix + 1, iy, k), c = hash2(ix, iy + 1, k), d = hash2(ix + 1, iy + 1, k);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y, k = 0, oct = 4) {
+  let a = 0.5, s = 0, n = 0;
+  for (let i = 0; i < oct; i++) { s += a * vnoise(x, y, k + i * 7); n += a; x = x * 2.03 + 17.1; y = y * 2.03 + 17.1; a *= 0.5; }
+  return s / n;
+}
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const sstep = (a, b, x) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const mix = (a, b, t) => a + (b - a) * t;
+
+/* ======================================================================
+   캔버스
+   ====================================================================== */
+const cv = document.getElementById('art');
+const ctx = cv.getContext('2d', { alpha: false });
+const mkCanvas = () => document.createElement('canvas');
+let bgC = mkCanvas(), statC = mkCanvas(), nextC = mkCanvas();
+function fit(c) {
+  if (c.width !== cv.width || c.height !== cv.height) { c.width = cv.width; c.height = cv.height; }
+  return c.getContext('2d');
+}
+let W = innerWidth, H = innerHeight;
+function resize() {
+  W = innerWidth; H = innerHeight;
+  const scale = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality);
+  const box = cv.getBoundingClientRect();
+  cv.width = Math.round((box.width || W) * scale); cv.height = Math.round((box.height || H) * scale); cv._scale = scale;
+  cacheOK = false;
+}
+
+/* ======================================================================
+   노이즈 격자(1/4 해상도): 땅 무늬, 눈 덮임, 눈더미 가장자리 흔들림, 좌표 비틀기
+   ====================================================================== */
+const S = 4;
+let G = null, gridKey = '';
+function buildGrid() {
+  const key = seed + '|' + W + '|' + H;
+  if (key === gridKey) return;
+  gridKey = key;
+  const gw = Math.ceil(W / S) + 2, gh = Math.ceil(H / S) + 2, n = gw * gh;
+  G = { gw, gh, earth: new Float32Array(n), wet: new Float32Array(n), dust: new Float32Array(n), edge: new Float32Array(n), wx: new Float32Array(n), wy: new Float32Array(n) };
+  for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+    const k = j * gw + i, x = i * S, y = j * S;
+    const rx = x * 0.8 - y * 0.6, ry = x * 0.6 + y * 0.8;                 // 격자 방향 무늬가 덜 보이게 돌린 좌표
+    G.earth[k] = fbm(x * 0.006, y * 0.006, 31);
+    G.wet[k] = fbm(x * 0.0022, y * 0.0022, 32, 3);
+    G.dust[k] = fbm(rx * 0.0045, ry * 0.0045, 33) * 0.65 + fbm(ry * 0.013, rx * 0.013, 34, 3) * 0.35;
+    G.edge[k] = fbm(rx * 0.02, ry * 0.02, 35, 3);
+    G.wx[k] = fbm(x * 0.004, y * 0.004, 37, 3) - 0.5;
+    G.wy[k] = fbm(x * 0.004, y * 0.004, 38, 3) - 0.5;
+  }
+}
+
+/* ======================================================================
+   마당(bg): 흙 + 얇게 깔린 첫눈 + 고운 결
+   ====================================================================== */
+const groundC = mkCanvas();
+let groundKey = '';
+function buildGroundImage() {
+  const key = gridKey + '|' + P.cover;
+  if (key === groundKey) return;
+  groundKey = key;
+  const { gw, gh } = G;
+  groundC.width = gw; groundC.height = gh;
+  const c = groundC.getContext('2d'), img = c.createImageData(gw, gh), d = img.data;
+  for (let k = 0; k < gw * gh; k++) {
+    const e = G.earth[k], wet = 0.8 + 0.2 * G.wet[k];
+    let r = mix(0.33, 0.45, e) * wet, g = mix(0.28, 0.38, e) * wet, b = mix(0.25, 0.33, e) * wet;     // 젖은 흙
+    // 첫눈: 얇게 고루 덮이되(설정값만큼) 노이즈에 따라 흙이 비치는 곳과 두껍게 쌓인 곳이 생긴다
+    const t = G.dust[k] + (P.cover - 0.5) * 1.1;
+    const sn = P.cover <= 0 ? 0 : clamp01(sstep(0.4, 0.6, t) * 0.9 + 0.12 * P.cover);
+    const sb = 0.9 + 0.08 * e;
+    r = mix(r, 0.86 * sb, sn); g = mix(g, 0.89 * sb, sn); b = mix(b, 0.95 * sb, sn);
+    d[k * 4] = r * 255; d[k * 4 + 1] = g * 255; d[k * 4 + 2] = b * 255; d[k * 4 + 3] = 255;
+  }
+  c.putImageData(img, 0, 0);
+}
+let grainPat = null, grainK = 0;
+function grainPattern(c, k) {                       // 고운 결(눈 알갱이·흙 알갱이): 작은 타일을 반복
+  if (grainPat && grainK === k) return grainPat;
+  const t = mkCanvas(), s = 160;
+  t.width = t.height = s;
+  const g = t.getContext('2d'), rnd = mulberry32(99);
+  for (let i = 0; i < 900; i++) {
+    const v = rnd() < 0.5 ? 255 : 0;
+    g.fillStyle = `rgba(${v},${v},${v},${0.05 + rnd() * 0.07})`;
+    g.fillRect(rnd() * s, rnd() * s, 1 + rnd() * 1.5, 1 + rnd() * 1.5);
+  }
+  grainPat = c.createPattern(t, 'repeat'); grainK = k;
+  return grainPat;
+}
+function paintBg() {
+  const k = cv._scale, c = fit(bgC);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.drawImage(groundC, 0, 0, G.gw, G.gh, 0, 0, G.gw * S * k, G.gh * S * k);
+  c.setTransform(k, 0, 0, k, 0, 0);
+  c.fillStyle = grainPattern(c, k); c.fillRect(0, 0, W, H);
+  // 흙 위에 얹힌 눈 알갱이(덮인 정도에 비례)
+  const rnd = mulberry32(seed ^ 0x51ed270b), n = Math.round(W * H / 700 * (0.25 + P.cover));
+  c.fillStyle = 'rgba(240,244,250,0.75)';
+  for (let i = 0; i < n; i++) { const x = rnd() * W, y = rnd() * H, r = 0.5 + rnd() * 1.1; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill(); }
+  bgOK = true;
+}
+
+/* ======================================================================
+   눈더미: 아이콘 둘레의 높이장(1/4 해상도) → 빛·그늘·그림자를 칠한 투명 이미지
+   ====================================================================== */
+let icons = [];
+const driftC = mkCanvas();
+let driftS = null;                                  // 각 격자점의 "눈더미 가장자리까지 거리"(CSS px, <0 = 눈더미 안)
+function computeField(ics) {
+  const { gw, gh } = G, n = gw * gh, f = new Float32Array(n);
+  const sig = P.drift, is1 = 1 / (sig * sig), wa = 60;
+  for (const ic of ics) {
+    const cx = ic.x + ic.w / 2, cy = ic.y + ic.h / 2, chw = Math.max(4, ic.w / 2 - 10) * 0.6, chh = Math.max(4, ic.h / 2 - 8) * 0.6;
+    const R = 3.2 * sig + Math.max(chw, chh) + wa;                     // exp(-3.2²)≈4e-5: 이보다 먼 곳은 기여가 없다
+    const i0 = Math.max(0, Math.floor((cx - R) / S)), i1 = Math.min(gw - 1, Math.ceil((cx + R) / S));
+    const j0 = Math.max(0, Math.floor((cy - R) / S)), j1 = Math.min(gh - 1, Math.ceil((cy + R) / S));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const k = j * gw + i, qx = i * S + G.wx[k] * wa, qy = j * S + G.wy[k] * wa;
+      let dx = Math.abs(qx - cx) - chw, dy = Math.abs(qy - cy) - chh;
+      if (dx < 0) dx = 0; if (dy < 0) dy = 0;
+      f[k] += Math.exp(-(dx * dx + dy * dy) * is1);
+    }
+  }
+  const c0 = Math.sqrt(-Math.log(0.35)), s = new Float32Array(n), fMin = Math.exp(-30);
+  for (let k = 0; k < n; k++) {
+    const g = Math.log(Math.max(f[k], fMin));
+    s[k] = sig * (Math.sqrt(Math.max(-g, 0)) - c0) - sig * 0.6 * Math.max(g, 0) + (G.edge[k] - 0.5) * 30;   // 가장자리를 울퉁불퉁하게
+  }
+  return s;
+}
+function buildDriftImage(ics) {
+  const { gw, gh } = G;
+  driftS = computeField(ics);
+  driftC.width = gw; driftC.height = gh;
+  const c = driftC.getContext('2d'), img = c.createImageData(gw, gh), d = img.data, s = driftS;
+  const height = v => { const h = clamp01(-v / 48); return 1 - (1 - h) * (1 - h); };      // 둥근 둔덕
+  const SO = [Math.round(3), Math.round(4)];                                               // 그림자: 오른쪽 아래로 (3,4)칸 = (12,16)px
+  for (let j = 1; j < gh - 1; j++) for (let i = 1; i < gw - 1; i++) {
+    const k = j * gw + i, v = s[k], o = k * 4;
+    const inside = sstep(2, -2, v);
+    let sh = 0;
+    const si = i - SO[0], sj = j - SO[1];
+    if (si >= 0 && sj >= 0) sh = sstep(4, -6, s[sj * gw + si]) * (1 - inside);           // 땅에 드리운 그림자
+    if (inside <= 0.002 && sh <= 0.002) { d[o + 3] = 0; continue; }
+    // 둔덕의 기울기로 밝기: 빛 쪽(왼쪽 위)이 밝고 반대쪽은 푸른 그늘
+    const gx = (height(s[k + 1]) - height(s[k - 1])) / (2 * S), gy = (height(s[k + gw]) - height(s[k - gw])) / (2 * S);
+    const lit = clamp01(0.62 - (gx * LIGHT[0] + gy * LIGHT[1]) * 22);
+    const rim = sstep(-1, -7, v) * (1 - sstep(-7, -16, v));                                 // 가장자리 띠
+    const bright = clamp01(lit + rim * (lit - 0.5) * 0.5);
+    // 눈 몸통은 너무 하얗지 않게(흰 아이콘 글자가 보이게), 빛 받는 가장자리만 더 밝게
+    let r = mix(0.70, 0.96, bright), g = mix(0.77, 0.97, bright), b = mix(0.88, 0.99, bright);
+    const dent = sstep(-26, -60, v) * 0.06;                                                  // 아이콘이 앉은 자리는 살짝 눌려 어둡게
+    r -= dent; g -= dent; b -= dent * 0.5;
+    if (inside < 1) {                                                                        // 눈더미 밖 가장자리는 그림자색과 섞는다
+      const a = inside + sh * 0.42 * (1 - inside);
+      const t = inside / Math.max(a, 1e-4);
+      r = mix(0.20, r, t); g = mix(0.27, g, t); b = mix(0.46, b, t);
+      d[o] = r * 255; d[o + 1] = g * 255; d[o + 2] = b * 255; d[o + 3] = a * 255;
+    } else { d[o] = r * 255; d[o + 1] = g * 255; d[o + 2] = b * 255; d[o + 3] = 255; }
+  }
+  c.putImageData(img, 0, 0);
+}
+const sAt = (x, y) => {                              // CSS px 위치의 눈더미 거리(없으면 큰 값)
+  if (!driftS) return 999;
+  const i = Math.min(G.gw - 1, Math.max(0, Math.round(x / S))), j = Math.min(G.gh - 1, Math.max(0, Math.round(y / S)));
+  return driftS[j * G.gw + i];
+};
+
+/* ======================================================================
+   소품: 눈사람, 장독대, 발자국
+   ====================================================================== */
+function emptySpots(ics, count, avoid, minGap) {     // 아이콘·눈더미에서 먼 자리(점수 높은 순, 서로 minGap 이상)
+  const cand = [], rnd = mulberry32(seed ^ 0x1b873593);
+  for (let y = 90; y < H - TASKBAR - 70; y += 30) for (let x = 90; x < W - 90; x += 30) {
+    let m = 600;
+    for (const ic of ics) {
+      const dx = Math.max(ic.x - x, 0, x - ic.x - ic.w), dy = Math.max(ic.y - y, 0, y - ic.y - ic.h);
+      m = Math.min(m, Math.hypot(dx, dy));
+    }
+    cand.push({ x, y, score: m + rnd() * 40 });
+  }
+  cand.sort((a, b) => b.score - a.score);
+  const out = [];
+  for (const c of cand) {
+    if (out.length >= count) break;
+    if (out.concat(avoid).some(o => Math.hypot(o.x - c.x, o.y - c.y) < minGap)) continue;
+    out.push(c);
+  }
+  return out;
+}
+function shadowEllipse(c, x, y, rx, ry, a) {
+  c.fillStyle = `rgba(32,44,86,${a})`;
+  c.beginPath(); c.ellipse(x, y, rx, ry, 0.5, 0, 6.283); c.fill();
+}
+function snowBall(c, x, y, r) {
+  const g = c.createRadialGradient(x - r * 0.4, y - r * 0.45, r * 0.1, x, y, r);
+  g.addColorStop(0, '#fbfcff'); g.addColorStop(0.55, '#e3e9f3'); g.addColorStop(1, '#a9b8d2');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill();
+}
+function paintSnowman(c, x, y, s) {
+  shadowEllipse(c, x + 16 * s, y + 14 * s, 38 * s, 22 * s, 0.32);
+  c.strokeStyle = '#5b4030'; c.lineCap = 'round'; c.lineWidth = 2.4 * s;                // 나뭇가지 팔
+  for (const side of [-1, 1]) {
+    const ax = x + side * 24 * s, ay = y - 6 * s, bx = x + side * 50 * s, by = y - 22 * s;
+    c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by);
+    c.moveTo(mix(ax, bx, 0.7), mix(ay, by, 0.7)); c.lineTo(mix(ax, bx, 0.7) + side * 6 * s, mix(ay, by, 0.7) - 9 * s);
+    c.stroke();
+  }
+  snowBall(c, x, y, 30 * s);                                                               // 몸
+  c.fillStyle = '#c0392b';                                                                  // 목도리
+  c.beginPath(); c.ellipse(x - 2 * s, y - 25 * s, 17 * s, 6 * s, -0.08, 0, 6.283); c.fill();
+  c.fillRect(x + 4 * s, y - 24 * s, 6 * s, 16 * s);
+  snowBall(c, x - 3 * s, y - 38 * s, 19 * s);                                              // 머리
+  c.fillStyle = '#2b2b30';
+  for (const [dx, dy, r] of [[-9, -42, 2.4], [3, -43, 2.4], [-1, -8, 2.6], [0, 4, 2.6]]) { c.beginPath(); c.arc(x + dx * s, y + dy * s, r * s, 0, 6.283); c.fill(); }
+  c.fillStyle = '#ef7d2d';                                                                  // 당근 코
+  c.beginPath(); c.moveTo(x - 4 * s, y - 37 * s); c.lineTo(x + 10 * s, y - 33 * s); c.lineTo(x - 3 * s, y - 33 * s); c.closePath(); c.fill();
+}
+function paintJars(c, x, y, s, rnd) {
+  // 돌 받침: 앞면(아래쪽)은 어두운 돌, 윗면은 눈이 얇게 덮인 판석
+  shadowEllipse(c, x + 16 * s, y + 18 * s, 104 * s, 58 * s, 0.26);
+  c.fillStyle = '#4c4743';
+  c.beginPath(); c.roundRect(x - 96 * s, y - 50 * s, 192 * s, 112 * s, 20 * s); c.fill();
+  const top = c.createLinearGradient(x - 96 * s, y - 56 * s, x + 96 * s, y + 50 * s);
+  top.addColorStop(0, '#e9eef6'); top.addColorStop(1, '#b8c3d6');
+  c.fillStyle = top;
+  c.beginPath(); c.roundRect(x - 96 * s, y - 58 * s, 192 * s, 108 * s, 20 * s); c.fill();
+  // 옹기들: 뒤쪽(위)부터
+  const jars = [[-50, -16, 30], [8, -20, 34], [56, -8, 24], [-24, 22, 22], [30, 24, 20]];
+  for (const [dx, dy, r0] of jars) {
+    const jx = x + dx * s, jy = y + dy * s, r = r0 * s * (0.92 + rnd() * 0.16);
+    shadowEllipse(c, jx + r * 0.45, jy + r * 0.42, r * 1.05, r * 0.8, 0.3);
+    const body = c.createRadialGradient(jx - r * 0.35, jy - r * 0.4, r * 0.15, jx, jy, r);
+    body.addColorStop(0, '#9a5a35'); body.addColorStop(0.6, '#6a3a22'); body.addColorStop(1, '#3d2014');
+    c.fillStyle = body; c.beginPath(); c.arc(jx, jy, r, 0, 6.283); c.fill();
+    c.fillStyle = '#4a2817'; c.beginPath(); c.arc(jx, jy, r * 0.66, 0, 6.283); c.fill();               // 뚜껑
+    // 뚜껑 위 눈: 왼쪽 위로 치우친 하얀 덩이
+    const sx = jx - r * 0.06, sy = jy - r * 0.08, sr = r * (0.56 + rnd() * 0.06);
+    const sg = c.createRadialGradient(sx - sr * 0.4, sy - sr * 0.4, sr * 0.1, sx, sy, sr);
+    sg.addColorStop(0, '#fbfcff'); sg.addColorStop(0.7, '#dde5f1'); sg.addColorStop(1, '#a8b6cf');
+    c.fillStyle = sg; c.beginPath(); c.arc(sx, sy, sr, 0, 6.283); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 1.2 * s;                                   // 몸통 테두리 반짝임
+    c.beginPath(); c.arc(jx, jy, r * 0.93, 3.6, 4.6); c.stroke();
+  }
+}
+function footprint(c, x, y, ang, s, left) {
+  c.save(); c.translate(x, y); c.rotate(ang); c.translate(0, left ? -5 * s : 5 * s);
+  c.beginPath(); c.ellipse(0, 0, 7 * s, 3.4 * s, 0, 0, 6.283); c.fill();
+  c.beginPath(); c.ellipse(-9.5 * s, 0, 3.2 * s, 2.8 * s, 0, 0, 6.283); c.fill();               // 뒤꿈치
+  c.restore();
+}
+function pawprint(c, x, y, s) {
+  c.beginPath(); c.ellipse(x, y, 2.6 * s, 2.2 * s, 0, 0, 6.283); c.fill();
+  for (const [dx, dy] of [[-2.6, -3.2], [0, -4.2], [2.6, -3.2]]) { c.beginPath(); c.arc(x + dx * s, y + dy * s, 1.1 * s, 0, 6.283); c.fill(); }
+}
+function trail(from, to, rnd, bend) {                // 휘어진 길(3차 베지어) 위의 점들
+  const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2, len = Math.hypot(to.x - from.x, to.y - from.y);
+  const nx = -(to.y - from.y) / len, ny = (to.x - from.x) / len, b1 = (rnd() - 0.5) * bend * len, b2 = (rnd() - 0.5) * bend * len;
+  const p1 = { x: mix(from.x, mx, 0.6) + nx * b1, y: mix(from.y, my, 0.6) + ny * b1 }, p2 = { x: mix(to.x, mx, 0.6) + nx * b2, y: mix(to.y, my, 0.6) + ny * b2 };
+  return t => {
+    const u = 1 - t;
+    return { x: u * u * u * from.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * to.x,
+             y: u * u * u * from.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * to.y };
+  };
+}
+function paintTracks(c, ics, target, rnd) {
+  c.save();
+  c.beginPath(); c.rect(0, 0, W, H);                                                         // 아이콘 아래로는 지나가지 않게
+  for (const ic of ics) c.rect(ic.x - 4, ic.y - 4, ic.w + 8, ic.h + 8);
+  c.clip('evenodd');
+  const s = Math.max(0.85, Math.min(1.3, H / 1080));
+  // 사람 발자국: 아래쪽 가장자리에서 눈사람(없으면 마당 한가운데)까지
+  const to = target || { x: W * 0.55, y: H * 0.45 };
+  const from = { x: Math.min(W - 40, Math.max(40, to.x + (rnd() - 0.5) * W * 0.6)), y: H - TASKBAR + 20 };
+  const path = trail(from, { x: to.x - 40 * s, y: to.y + 46 * s }, rnd, 0.5);
+  let prev = path(0), left = false;
+  const L = Math.hypot(to.x - from.x, to.y - from.y), step = 22 * s / Math.max(L, 1);
+  for (let t = step; t <= 1; t += step) {
+    const p = path(t), ang = Math.atan2(p.y - prev.y, p.x - prev.x);
+    const deep = sAt(p.x, p.y) < 0;                                                         // 눈더미 위는 더 깊고 푸르게
+    c.fillStyle = deep ? 'rgba(84,104,150,0.55)' : 'rgba(58,48,42,0.5)';
+    footprint(c, p.x, p.y, ang, s, left);
+    left = !left; prev = p;
+  }
+  // 고양이 발자국: 한쪽 가장자리에서 다른 쪽으로 구불구불
+  const side = rnd() < 0.5;
+  const cf = { x: side ? -20 : W + 20, y: H * (0.25 + rnd() * 0.4) }, ct = { x: W * (0.3 + rnd() * 0.4), y: side ? H + 10 : -10 };
+  const cp = trail(cf, ct, rnd, 0.9), CL = Math.hypot(ct.x - cf.x, ct.y - cf.y), cs = 15 * s / Math.max(CL, 1);
+  let alt = false;
+  for (let t = 0; t <= 1; t += cs) {
+    const p = cp(t), q = cp(Math.min(1, t + 0.001)), ang = Math.atan2(q.y - p.y, q.x - p.x);
+    const off = (alt ? 4 : -4) * s;
+    c.fillStyle = sAt(p.x, p.y) < 0 ? 'rgba(84,104,150,0.5)' : 'rgba(58,48,42,0.42)';
+    pawprint(c, p.x - Math.sin(ang) * off, p.y + Math.cos(ang) * off, s);
+    alt = !alt;
+  }
+  c.restore();
+}
+function paintIcons(c) {
+  const ics = P.adaptive ? icons : [];
+  buildDriftImage(ics);
+  const k = cv._scale;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+  c.drawImage(driftC, 0, 0, G.gw, G.gh, 0, 0, G.gw * S * k, G.gh * S * k);
+  c.restore();
+  // 눈더미 위 반짝이는 결정
+  const rnd = mulberry32(seed ^ 0x6b43a9b5);
+  c.fillStyle = 'rgba(255,255,255,0.85)';
+  for (let i = 0, n = Math.round(W * H / 1500); i < n; i++) {
+    const x = rnd() * W, y = rnd() * H;
+    if (sAt(x, y) > -6) continue;
+    c.fillRect(x, y, 1.1, 1.1);
+  }
+  const s = Math.max(0.8, Math.min(1.3, H / 1080));
+  const spots = emptySpots(ics, 2, [], 260 * s);
+  const snowman = P.showSnowman ? spots[0] : null;
+  const jars = P.showJars ? (P.showSnowman ? spots[1] : spots[0]) : null;
+  if (P.showTracks) paintTracks(c, ics, snowman, mulberry32(seed ^ 0x2c1b3c6d));
+  if (jars) paintJars(c, jars.x, jars.y, s, mulberry32(seed ^ 0x7a1f2e3d));
+  if (snowman) paintSnowman(c, snowman.x, snowman.y, s * 1.2);
+}
+function composeStatic(target) {
+  const k = cv._scale, c = fit(target);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  c.drawImage(bgC, 0, 0);
+  c.setTransform(k, 0, 0, k, 0, 0);
+  paintIcons(c);
+}
+
+/* ======================================================================
+   눈송이: 깊이에 따라 크기·속도·밝기가 다르고, 바람에 좌우로 흔들린다
+   ====================================================================== */
+let flakes = [], flakeSpr = null, flakeK = 0;
+function ensureFlakeSprite(k) {
+  if (flakeSpr && flakeK === k) return;
+  flakeK = k;
+  const c = mkCanvas(), s = Math.max(4, Math.ceil(16 * k));
+  c.width = c.height = s;
+  const g = c.getContext('2d'), m = s / 2, gr = g.createRadialGradient(m, m, 0, m, m, m);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.7, 'rgba(240,246,255,0.3)'); gr.addColorStop(1, 'rgba(240,246,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  flakeSpr = c;
+}
+function syncFlakes() {
+  const want = Math.round(W * H / 5500 * P.snowfall);
+  while (flakes.length > want) flakes.pop();
+  while (flakes.length < want) {
+    const z = 0.25 + 0.75 * Math.pow(Math.random(), 1.6);
+    flakes.push({ x: Math.random() * W, y: Math.random() * H, z, r: 0.9 + 2.6 * z, vy: 16 + 52 * z,
+      amp: 6 + 14 * Math.random(), f: 0.25 + 0.8 * Math.random(), ph: Math.random() * 6.283, a: 0.45 + 0.5 * z });
+  }
+}
+let windX = 0;
+function stepFlakes(dt, t) {
+  syncFlakes();
+  windX = mix(windX, P.wind * 70 * (0.75 + 0.25 * Math.sin(t * 0.21)), Math.min(1, dt * 0.8));   // 바람은 천천히 세졌다 약해졌다
+  for (const f of flakes) {
+    f.y += f.vy * dt;
+    f.x += (windX * f.z + Math.cos(t * f.f + f.ph) * f.amp * f.f) * dt;
+    if (f.y > H + 6) { f.y = -6; f.x = Math.random() * W; }
+    if (f.x > W + 8) f.x -= W + 16; else if (f.x < -8) f.x += W + 16;
+  }
+}
+
+/* ======================================================================
+   그리기
+   ====================================================================== */
+let cacheOK = false, bgOK = false;
+let trans = null;
+let paused = false, frameN = 0;
+let drewFlakes = false;
+const T0 = performance.now();
+const ease = e => e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+function rebuildBg() { buildGrid(); buildGroundImage(); paintBg(); }
+function draw(now) {
+  const k = cv._scale;
+  ensureFlakeSprite(k);
+  let full = false;
+  if (!cacheOK) {
+    rebuildBg(); composeStatic(statC);
+    trans = null; cacheOK = true; full = true;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  const anyFlakes = flakes.length > 0;
+  if (trans) {
+    const e = ease(Math.min((now - trans.t0) / trans.dur, 1));
+    ctx.drawImage(statC, 0, 0);
+    ctx.globalAlpha = e; ctx.drawImage(nextC, 0, 0); ctx.globalAlpha = 1;
+    if (e >= 1) { const tmp = statC; statC = nextC; nextC = tmp; trans = null; }
+  } else if (full || anyFlakes || drewFlakes) ctx.drawImage(statC, 0, 0);
+  else return;                                      // 움직이는 게 없으면 다시 그릴 필요가 없다
+  if (anyFlakes) {
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    for (const f of flakes) {
+      ctx.globalAlpha = f.a;
+      const d = f.r * 2.4;
+      ctx.drawImage(flakeSpr, f.x - d / 2, f.y - d / 2, d, d);
+    }
+    ctx.globalAlpha = 1;
+  }
+  drewFlakes = anyFlakes;
+}
+function commit(first = false) {
+  if (!cacheOK) return;
+  if (trans) {
+    const e = ease(Math.min((performance.now() - trans.t0) / trans.dur, 1));
+    const c = statC.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = e; c.drawImage(nextC, 0, 0); c.globalAlpha = 1;
+  }
+  if (!bgOK) rebuildBg();
+  composeStatic(nextC);
+  trans = { t0: performance.now(), dur: first ? 2200 : 1200 };
+}
+
+let lastT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { lastT = 0; return; }
+  if (P.cap30 && now - lastT < 31) return;
+  const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
+  lastT = now; frameN++;
+  stepFlakes(dt, (now - T0) / 1000);
+  draw(now);
+}
+
+/* ======================================================================
+   설정·호스트 메시지
+   ====================================================================== */
+let iconsSeen = !(WALL || PREVIEW);
+function reseed(v) {
+  seed = v; bgOK = false;
+  if (iconsSeen) commit(true);
+}
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed + SEED_OFF !== seed) reseed(v.seed + SEED_OFF);
+  let changed = false;
+  for (const key in v) {
+    if ((!SLIDER_KEYS.includes(key) && !DISPLAY_KEYS.includes(key)) || typeof v[key] !== typeof P[key] || P[key] === v[key]) continue;
+    if (DISPLAY_KEYS.includes(key) && v[key] !== 0 && v[key] !== 1) continue;
+    P[key] = v[key];
+    if (BG_KEYS.includes(key)) { bgOK = false; changed = true; }
+    if (ICON_KEYS.includes(key)) changed = true;
+  }
+  if (changed) commit();
+}
+function drawGhosts() {
+  document.getElementById('ghosts').innerHTML = icons.map(ic =>
+    `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+function startHostedMode() {
+  if (PREVIEW) document.body.classList.add('ghosts');
+  let first = true;
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : !!m.v; return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
+    if (PREVIEW) drawGhosts();
+    iconsSeen = true;
+    commit(first);
+    first = false;
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+function startDemo() {
+  document.body.classList.add('ghosts', 'demo');
+  const cell = (c, r) => ({ x: 4 + c * 76, y: 6 + r * 100, w: 76, h: 92 });
+  const rows = Math.max(1, Math.floor((H - TASKBAR - 6) / 100));
+  for (let c = 0; c < 3; c++) for (let r = 0; r < rows; r++) icons.push(cell(c, r));
+  for (const [c, r] of [[6, 0], [6, 1], [7, 3], [8, 3], [8, 4], [12, 1], [13, 1], [14, 1], [13, 2], [20, 0], [21, 0], [19, 5], [20, 5]])
+    if (c * 76 < W - 80 && r < rows) icons.push(cell(c, r));
+  drawGhosts();
+  let drag = null;
+  addEventListener('pointerdown', e => {
+    const ic = icons.find(i => e.clientX >= i.x && e.clientX < i.x + i.w && e.clientY >= i.y && e.clientY < i.y + i.h);
+    if (ic) drag = { ic, dx: e.clientX - ic.x, dy: e.clientY - ic.y };
+  });
+  addEventListener('pointermove', e => { if (drag) { drag.ic.x = e.clientX - drag.dx; drag.ic.y = e.clientY - drag.dy; drawGhosts(); } });
+  addEventListener('pointerup', () => { if (drag) { drag = null; commit(); } });
+  addEventListener('keydown', e => {
+    const key = e.key.toLowerCase();
+    if (key === 'r') reseed((Math.random() * 1e6) | 0);
+    else if (key === 's') applySettings({ showSnowman: 1 - P.showSnowman });
+    else if (key === 'j') applySettings({ showJars: 1 - P.showJars });
+    else if (key === 't') applySettings({ showTracks: 1 - P.showTracks });
+  });
+}
+
+let resizeT = 0;
+addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(resize, 100); });
+
+window.__dbg = {
+  P,
+  bench() {
+    const a = performance.now(); gridKey = ''; groundKey = ''; cacheOK = false; draw(performance.now());
+    const b = performance.now(); composeStatic(nextC); const c = performance.now(); draw(performance.now()); const d = performance.now();
+    return { rebuildAll: +(b - a).toFixed(1), iconLayer: +(c - b).toFixed(1), frame: +(d - c).toFixed(2), canvas: cv.width + 'x' + cv.height, flakes: flakes.length };
+  },
+};
+resize();
+if (WALL || PREVIEW) startHostedMode(); else startDemo();
+requestAnimationFrame(frame);
+</script>
+<script src="share.js"></script>   <!-- 이미지·영상 공유(예시 아이콘, 이름은 색 블록) -->
+</body>
+</html>

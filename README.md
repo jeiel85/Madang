@@ -12,16 +12,23 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 
 ![별자리](docs/images/starry.webp)
 
+![첫눈](docs/images/snow.webp)
+
 ![초원](docs/images/meadow.webp)
 
 ![해변](docs/images/beach.webp)
 
 ## 포함된 테마
 
-| 별자리 | 해변 | 초원 |
-| --- | --- | --- |
-| ![별자리 테마](prototype/thumbs/starry.webp) | ![해변 테마](prototype/thumbs/beach.webp) | ![초원 테마](prototype/thumbs/meadow.webp) |
-| 아이콘이 별이 되고 가까운 별끼리 별자리로 이어지는 밤하늘. 은하수, 별똥별, 아이콘이 적은 쪽 하늘에 뜨는 초승달, 능선 위 불 켜진 한옥. Madang 자체 테마. | 청록빛 파도, 카약, 바닷새와 야자수. | 흘러가는 구름과 그림자, 연 날리는 아이와 작은 검은 고양이. |
+| 별자리 | 첫눈 |
+| --- | --- |
+| ![별자리 테마](prototype/thumbs/starry.webp) | ![첫눈 테마](prototype/thumbs/snow.webp) |
+| 아이콘이 별이 되고 가까운 별끼리 별자리로 이어지는 밤하늘. 은하수, 별똥별, 아이콘이 적은 쪽 하늘에 뜨는 초승달, 능선 위 불 켜진 한옥. Madang 자체 테마. | 첫눈 내린 흙마당. 아이콘 둘레로 눈더미가 소복이 쌓이고, 바람에 날리는 눈송이, 아이콘이 적은 곳의 눈사람과 장독대, 사람·고양이 발자국. Madang 자체 테마. |
+
+| 해변 | 초원 |
+| --- | --- |
+| ![해변 테마](prototype/thumbs/beach.webp) | ![초원 테마](prototype/thumbs/meadow.webp) |
+| 청록빛 파도, 카약, 바닷새와 야자수. | 흘러가는 구름과 그림자, 연 날리는 아이와 작은 검은 고양이. |
 
 ## 앞으로 할 일
 
@@ -91,6 +98,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 | `prototype/flat.html` | 해변 테마 |
 | `prototype/meadow.html` | 초원 테마 |
 | `prototype/starry.html` | 별자리 테마 |
+| `prototype/snow.html` | 첫눈 테마 |
 | `prototype/settings.html` | 설정 화면 |
 | `prototype/themes.json` | 테마 정의와 기본값 |
 | `prototype/i18n/` | 화면 문구 (한국어, 영어, 간체 중국어) |
@@ -118,7 +126,7 @@ Madang ("courtyard" in Korean) turns the space around your icons into a living l
 
 > Madang is an **independent project** based on [Deskland Preview](https://github.com/BLEZZ0102/Deskland) (GPL-3.0). It is not affiliated with, approved or endorsed by the Deskland authors. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
-- **Themes:** Constellations (Madang's own night sky, where your icons become stars), Beach and Meadow, with every setting saved between sessions.
+- **Themes:** Madang's own Constellations (a night sky where your icons become stars) and First Snow (a snowy Korean courtyard with drifts around your icons), plus Beach and Meadow. Every setting is saved between sessions.
 - **Languages:** Korean, English and Simplified Chinese, following the Windows display language by default.
 - **Multiple monitors:** every monitor gets its own scene shaped around its own icons; turn off "Show on all monitors" in the tray menu to use the primary monitor only.
 - **Planned:** more original themes.

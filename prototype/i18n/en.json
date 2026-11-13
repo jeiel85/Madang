@@ -252,6 +252,57 @@
           ]
         }
       }
+    },
+    "snow": {
+      "name": "First Snow",
+      "desc": "First snow on a Korean courtyard: soft drifts pile up around your icons, with a snowman, onggi jars and footprints",
+      "groups": [
+        "Around icons",
+        "Snow",
+        "Details"
+      ],
+      "params": {
+        "drift": {
+          "label": "Drift size",
+          "hint": "How far the snow drifts around your icons spread"
+        },
+        "snowfall": {
+          "label": "Snowfall",
+          "hint": "How much snow is falling; 0 stops it"
+        },
+        "wind": {
+          "label": "Wind",
+          "hint": "How strongly the wind blows the snowflakes sideways"
+        },
+        "cover": {
+          "label": "Snow on the yard",
+          "hint": "How much of the open yard the thin snow covers"
+        },
+        "showSnowman": {
+          "label": "Show snowman",
+          "hint": "The snowman stands where there are the fewest icons",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "showJars": {
+          "label": "Show onggi jars",
+          "hint": "Earthenware jars with snow on their lids",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "showTracks": {
+          "label": "Show footprints",
+          "hint": "Footprints leading to the snowman and a trail of cat paw prints",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        }
+      }
     }
   }
 }

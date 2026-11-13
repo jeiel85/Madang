@@ -281,6 +281,104 @@
           ]
         }
       ]
+    },
+    {
+      "id": "snow",
+      "adaptive": true,
+      "name": "初雪",
+      "desc": "初雪落在韩式院子里，图标周围堆起软软的雪堆，院子里有雪人、酱缸台和脚印",
+      "page": "snow.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/snow.webp?v=b1130228d5) center / cover no-repeat, linear-gradient(160deg, #d9e0eb 0%, #8c8279 55%, #5e544c 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "drift",
+              "label": "雪堆大小",
+              "hint": "图标周围的雪堆往外铺多远",
+              "min": 40,
+              "max": 160,
+              "step": 1,
+              "default": 70,
+              "unit": "px"
+            }
+          ]
+        },
+        {
+          "name": "雪",
+          "params": [
+            {
+              "key": "snowfall",
+              "label": "降雪量",
+              "hint": "正在飘落的雪花有多少，设为 0 时停雪",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.6,
+              "format": "percent"
+            },
+            {
+              "key": "wind",
+              "label": "风",
+              "hint": "雪花被风吹斜的程度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.3,
+              "format": "percent"
+            },
+            {
+              "key": "cover",
+              "label": "院子积雪",
+              "hint": "空地上的薄雪盖住了多少",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.45,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "元素",
+          "params": [
+            {
+              "key": "showSnowman",
+              "label": "显示雪人",
+              "hint": "雪人站在图标最少的地方",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "showJars",
+              "label": "显示酱缸台",
+              "hint": "盖子上积了雪的酱缸",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "showTracks",
+              "label": "显示脚印",
+              "hint": "走向雪人的脚印和一串猫爪印",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            }
+          ]
+        }
+      ]
     }
   ]
 }
