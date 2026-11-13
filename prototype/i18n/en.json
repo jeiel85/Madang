@@ -102,7 +102,7 @@
     "trayAutostart": "Start with Windows",
     "trayExit": "Exit (restore wallpaper)",
     "welcomeTitle": "Madang is running",
-    "welcomeBody": "Click the beach icon in the system tray{hotkey} to open the menu.\nCan't see it? Click ^ on the right side of the taskbar.",
+    "welcomeBody": "Click the Madang icon in the system tray{hotkey} to open the menu.\nCan't see it? Click ^ on the right side of the taskbar.",
     "welcomeHotkey": " or press Ctrl+Alt+H",
     "errNotReady": "The wallpaper isn't ready yet",
     "errNoImage": "No image came back",

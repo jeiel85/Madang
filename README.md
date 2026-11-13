@@ -23,7 +23,6 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 
 ## 앞으로 할 일
 
-- 한국어 화면
 - 새 테마 (원작의 유료 테마를 재현하지 않는 자체 컨셉)
 - 멀티 모니터 지원
 
@@ -32,6 +31,7 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 - **아이콘 적응형 풍경:** 실제 바탕화면 아이콘 위치를 읽어, 아이콘이 움직이면 풍경이 부드럽게 바뀝니다.
 - **바탕화면 상주용 설계:** 트레이 메뉴, 로그인 시 자동 시작, 창을 최대화하거나 전체 화면이면 자동 일시정지.
 - **개인정보를 지키는 공유:** 이미지·애니메이션 공유는 예시 아이콘과 색 블록만 쓰고, 실제 바탕화면이나 파일 이름은 찍지 않습니다.
+- **한국어 화면:** 한국어, 영어, 간체 중국어를 지원하고 기본값은 Windows 표시 언어를 따릅니다.
 - **독립 설치:** 설치 폴더, 설정, 시작 프로그램 항목, 실행 인스턴스가 Deskland와 분리되어 있어 함께 설치해도 충돌하지 않습니다.
 
 ## 요구 사항
@@ -90,7 +90,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 | `prototype/meadow.html` | 초원 테마 |
 | `prototype/settings.html` | 설정 화면 |
 | `prototype/themes.json` | 테마 정의와 기본값 |
-| `prototype/i18n/` | 화면 문구 (현재 영어, 간체 중국어) |
+| `prototype/i18n/` | 화면 문구 (한국어, 영어, 간체 중국어) |
 | `prototype/share.js` | 개인정보를 지키는 이미지·애니메이션 공유 |
 | `prototype/assets/` | 테마 이미지 |
 | `tools/` | 설치 파일 빌드 도구 |
@@ -115,7 +115,8 @@ Madang ("courtyard" in Korean) turns the space around your icons into a living l
 > Madang is an **independent project** based on [Deskland Preview](https://github.com/BLEZZ0102/Deskland) (GPL-3.0). It is not affiliated with, approved or endorsed by the Deskland authors. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
 - **Themes:** Beach and Meadow, with every setting saved between sessions.
-- **Planned:** Korean UI, original new themes, multi-monitor support.
+- **Languages:** Korean, English and Simplified Chinese, following the Windows display language by default.
+- **Planned:** original new themes, multi-monitor support.
 - **Requirements:** 64-bit Windows 10/11 and the Microsoft Edge WebView2 Runtime. Building uses the C# compiler bundled with Windows.
 
 ```powershell

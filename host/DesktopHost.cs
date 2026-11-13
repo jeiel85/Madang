@@ -262,7 +262,7 @@ static class Settings
 static class I18n
 {
     // 增加语言时同步设置页 LANGS 与安装包文件列表。
-    public static readonly string[] Supported = { "zh-CN", "en" };
+    public static readonly string[] Supported = { "zh-CN", "en", "ko" };
     public static string Code = "zh-CN", Sys = "en";     // 现在用的语言；"跟随系统"时会用的语言
     static Dictionary<string, object> cur, en, zh;
 

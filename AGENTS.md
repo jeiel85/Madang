@@ -22,7 +22,8 @@
 
 ## 언어
 
-- 현재 화면 언어는 영어와 간체 중국어다. 한국어를 추가할 때는 `prototype/i18n/ko.json`을 만들고, `host/DesktopHost.cs`의 `I18n.Supported`, `prototype/settings.html`의 `LANGS`, `tools/build-installer.ps1`의 파일 목록에 함께 넣는다.
+- 현재 화면 언어는 한국어, 영어, 간체 중국어다. 언어를 추가할 때는 `prototype/i18n/<언어>.json`을 만들고, `host/DesktopHost.cs`의 `I18n.Supported`, `prototype/settings.html`의 `LANGS`, `tools/build-installer.ps1`의 파일 목록, `tools/installer.nsi`의 언어와 `LangString`에 함께 넣는다.
+- 문구를 바꾸면 `en.json`, `zh-CN.json`, `ko.json`의 키와 `{자리표시자}`를 맞춘다. 한국어 문구에서 `{sw}`, `{label}`처럼 무엇이 들어갈지 모르는 자리 뒤에는 조사(이/가, 을/를)를 붙이지 않는다.
 - 간체 중국어의 테마 문구는 `themes.json` 자체이고, 다른 언어는 `i18n/<언어>.json`의 `themes`에 둔다.
 
 ## 빌드와 실행
@@ -41,3 +42,4 @@
 ## 기록
 
 - 2026-11-13: Deskland Preview 0.1.3에서 포크하고 브랜드를 분리했다. 이름·식별자를 Madang으로 바꾸고, 원작 유료 테마 카드 11개와 썸네일, 구매 안내를 없앴다. Codex가 만든 시안 A로 새 아이콘을 넣었고, 버전은 0.1.0부터 시작한다.
+- 2026-11-13: 한국어 화면을 추가했다(설정 화면, 트레이·알림, 테마 이름과 설정, 설치 파일). 설정 화면이 처음 뜰 때 공유 버튼 문구가 중국어로 남던 원본 버그를 고쳤다.

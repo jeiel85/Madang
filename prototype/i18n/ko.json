@@ -1,0 +1,204 @@
+{
+  "name": "한국어",
+  "ui": {
+    "adaptive": "적응형",
+    "themes": "테마",
+    "collectionTitle": "풍경을 골라 보세요.",
+    "collectionSubtitle": "아이콘이 풍경의 일부가 됩니다.",
+    "language": "언어",
+    "langAuto": "시스템 기본값",
+    "langAutoWith": "시스템 기본값 ({name})",
+    "autostart": "Windows 시작 시 실행",
+    "autostartTitle": "로그인하면 Madang을 자동으로 실행합니다",
+    "autostartBlocked": "자동 시작이 차단되었을 수 있습니다",
+    "autostartWarnSw": "이번에는 Madang이 자동으로 시작되지 않았습니다. {sw}에서 차단했을 수 있습니다. {sw}의 시작 프로그램 관리에서 Madang을 찾아 ‘허용’으로 바꿔 주세요.",
+    "autostartWarnGeneric": "이번에는 Madang이 자동으로 시작되지 않았습니다. 보안 프로그램이나 Windows의 시작 프로그램 설정에서 차단했을 수 있습니다. 보안 프로그램의 시작 프로그램 관리 또는 Windows 설정 → 앱 → 시작 프로그램에서 Madang을 켜 주세요.",
+    "gotIt": "확인",
+    "updateAvailable": "업데이트 있음",
+    "updateVersion": "Madang {version} 버전이 나왔습니다. 지금 쓰는 테마와 설정은 그대로 유지됩니다.",
+    "updateProgram": "지금 업데이트",
+    "updateRetry": "다시 시도",
+    "updateWorking": "업데이트 중…",
+    "updateDownloading": "내려받아 설치하는 중… {progress}",
+    "updateInstalling": "업데이트 설치 중… {progress}",
+    "updateCompletedTitle": "업데이트 완료",
+    "updateCompleted": "업데이트를 내려받아 설치했습니다. 프로그램이 자동으로 다시 시작되지 않으면 Madang을 다시 열어 주세요.",
+    "updateDone": "완료",
+    "updateCanceled": "업데이트가 취소되었습니다. 나중에 다시 시도할 수 있습니다.",
+    "updateLowBattery": "배터리 전원으로는 업데이트를 마칠 수 없습니다. 전원을 연결하고 다시 시도해 주세요.",
+    "updateWifiRecommended": "이 네트워크는 요금이 부과될 수 있습니다. 다른 네트워크로 바꾸거나 나중에 다시 시도해 주세요.",
+    "updateWifiRequired": "이 업데이트를 내려받으려면 Wi-Fi에 연결해 주세요.",
+    "updateStoreRequired": "이 업데이트 방식은 Microsoft Store 버전에서만 쓸 수 있습니다.",
+    "updateFailed": "업데이트에 실패했습니다. 연결 상태나 Microsoft Store를 확인하고 다시 시도해 주세요.",
+    "updateCheckingTitle": "업데이트 확인 중",
+    "updateChecking": "업데이트 서버에 연결해 새 버전을 확인하고 있습니다…",
+    "updateFailedTitle": "업데이트를 마치지 못했습니다",
+    "updateCheckFailedTitle": "업데이트를 확인하지 못했습니다",
+    "networkTimeout": "연결 또는 다운로드 시간이 초과되었습니다. 네트워크, 프록시, 방화벽을 확인하고 다시 시도해 주세요. 다른 웹사이트가 잘 열린다면 서버 응답이 느린 것일 수도 있습니다.",
+    "networkDns": "서버 주소를 찾지 못했습니다. 네트워크, DNS, 프록시 설정을 확인하고 다시 시도해 주세요.",
+    "networkTls": "보안 연결을 만들지 못했습니다. 시스템 시간과 네트워크·프록시의 보안 검사 설정을 확인한 뒤 다시 시도해 주세요.",
+    "networkLocal": "네트워크 연결에 실패했거나 연결이 끊겼습니다. 네트워크, 프록시, 방화벽을 확인하고 다시 시도해 주세요.",
+    "serverUnavailable": "서버에는 연결됐지만 서비스를 잠시 쓸 수 없습니다(HTTP 5xx). 잠시 후 다시 시도해 주세요.",
+    "serverRejected": "서버가 요청을 거부했습니다(HTTP 4xx). 나중에 다시 시도하고, 계속되면 문의해 주세요.",
+    "serverInvalid": "서버가 알 수 없는 응답을 보냈습니다. 나중에 다시 시도하고, 계속되면 문의해 주세요.",
+    "downloadInvalid": "내려받은 파일이 불완전하거나 보안 검증을 통과하지 못해 설치를 멈췄습니다. 다시 시도하고, 계속되면 문의해 주세요.",
+    "livePreview": "실시간 미리보기",
+    "previewIcons": "실시간 미리보기 · 바탕화면 아이콘 {n}개 사용 중",
+    "previewNoIcons": "실시간 미리보기 · 바탕화면 아이콘이 숨겨져 있음",
+    "refresh": "새로고침",
+    "refreshTitle": "이 테마의 풍경을 새로 만듭니다",
+    "shareImage": "이미지 공유",
+    "shareImageTitle": "개인정보를 지키면서 바탕화면 이미지를 공유합니다",
+    "shareVideo": "영상 공유",
+    "shareVideoTitle": "개인정보를 지키면서 바탕화면 애니메이션을 공유합니다",
+    "generating": "만드는 중…",
+    "preparingRec": "준비 중…",
+    "recording": "녹화 중 {p}%",
+    "savingVideo": "저장 중…",
+    "shareFailImage": "이미지를 만들지 못했습니다: {msg}",
+    "shareFailVideo": "영상을 녹화하지 못했습니다: {msg}",
+    "unknownReason": "알 수 없는 오류",
+    "shareReadyImage": "바탕화면 이미지가 준비됐습니다",
+    "shareReadyVideo": "바탕화면 영상이 준비됐습니다",
+    "sharePrivacy": "아이콘은 예시 아이콘으로, 파일 이름은 색 블록으로 바꿨기 때문에 실제 파일은 보이지 않습니다.",
+    "shareCopiedImage": "이미지를 클립보드에 복사했습니다. 채팅이나 게시물에 바로 붙여 넣으세요.",
+    "shareCopiedVideo": "영상 파일을 클립보드에 복사했습니다. 채팅 창에 붙여 넣어 보내세요.",
+    "shareBrowserHint": " (브라우저 미리보기에서는 ‘{btn}’을 눌러 내려받으세요.)",
+    "savedTo": "저장 위치: {path}",
+    "openFolder": "폴더에서 보기",
+    "openImage": "이미지 열기",
+    "openVideo": "영상 열기",
+    "saveImage": "이미지 저장",
+    "saveVideo": "영상 저장",
+    "ok": "확인",
+    "sharePreviewAlt": "공유 이미지 미리보기",
+    "autosave": "설정은 자동으로 저장되고 바탕화면에 바로 적용됩니다",
+    "saved": "저장됨 ✓",
+    "resetAll": "모두 초기화",
+    "resetAllTitle": "이 테마의 모든 설정을 기본값으로 되돌립니다",
+    "helpButtonTitle": "자주 묻는 질문과 문제 해결",
+    "helpTitle": "도움말",
+    "helpSubtitle": "자주 묻는 질문과 문제 해결",
+    "helpWallpaperQ": "Madang이 자꾸 깜박이거나 다시 시작돼요. 어떻게 하나요?",
+    "helpWallpaperA": "Windows 배경화면이 자동으로 바뀌도록 설정되어 있으면, 바뀔 때마다 Madang이 깜박이거나 다시 시작될 수 있습니다. 바뀌지 않는 고정 배경을 쓰세요.",
+    "helpWallpaperStep1": "Windows 설정 → 개인 설정 → 배경을 엽니다.",
+    "helpWallpaperStep2": "‘배경 개인 설정’을 ‘사진’이나 ‘단색’으로 바꿉니다. ‘슬라이드 쇼’나 ‘Windows 추천’은 쓰지 마세요.",
+    "helpWallpaperStep3": "설정을 바꾼 뒤 Madang을 다시 실행합니다.",
+    "badgeOn": "사용 중",
+    "badgeReady": "사용 가능",
+    "badgeSoon": "준비 중",
+    "ongoingTitle": "계속 추가됩니다",
+    "ongoingDesc": "새로운 풍경과 요소가 차례로 추가될 예정입니다.",
+    "noParams": "이 테마에는 아직 설정이 없습니다",
+    "resetOne": "기본값으로 되돌리기: {v}",
+    "resetOneAria": "{label} 기본값으로 되돌리기",
+    "dblclickReset": "두 번 클릭하면 기본값({v})으로 되돌립니다",
+    "comingSoon": "준비 중:"
+  },
+  "host": {
+    "traySettings": "설정…",
+    "trayPause": "애니메이션 일시정지",
+    "trayReload": "다시 불러오기",
+    "trayAutostart": "Windows 시작 시 실행",
+    "trayExit": "종료 (원래 배경화면으로)",
+    "welcomeTitle": "Madang이 실행 중입니다",
+    "welcomeBody": "메뉴를 열려면 시스템 트레이의 Madang 아이콘을 클릭하세요{hotkey}.\n아이콘이 보이지 않으면 작업 표시줄 오른쪽의 ^를 클릭하세요.",
+    "welcomeHotkey": " (또는 Ctrl+Alt+H)",
+    "errNotReady": "배경화면이 아직 준비되지 않았습니다",
+    "errNoImage": "이미지를 받지 못했습니다",
+    "errNoVideo": "영상을 받지 못했습니다",
+    "errBusyImage": "이전 이미지를 아직 만드는 중입니다",
+    "errBusyVideo": "이전 영상을 아직 녹화하는 중입니다",
+    "errImageTimeout": "이미지를 만드는 데 너무 오래 걸렸습니다",
+    "errVideoTimeout": "녹화하는 데 너무 오래 걸렸습니다",
+    "errBadData": "페이지가 불완전한 데이터를 보냈습니다",
+    "errRebuilt": "Windows가 배경화면 레이어를 계속 다시 만들어서 Madang을 멈췄습니다.",
+    "errSeeLog": "자세한 내용은 로그를 확인하세요: {path}",
+    "errSettings": "설정 창을 열지 못했습니다: {msg}",
+    "errNoPage": "페이지를 찾을 수 없습니다: {path}",
+    "errNoDesktop": "바탕화면 창을 찾지 못해 배경화면을 붙일 수 없습니다.",
+    "errStart": "시작하지 못했습니다: {msg}"
+  },
+  "themes": {
+    "beach": {
+      "name": "해변",
+      "desc": "해안선이 파일 주위를 따라 굽이치고, 파도가 모래사장으로 겹겹이 밀려옵니다",
+      "groups": [
+        "해안선",
+        "바다",
+        "풍경 요소"
+      ],
+      "params": {
+        "palms": {
+          "label": "야자수",
+          "hint": "해안의 야자수 수입니다. 0이면 숨깁니다. 모래밭이 좁으면 더 적게 나타납니다.",
+          "unit": "그루"
+        },
+        "sigma": {
+          "label": "아이콘과의 거리",
+          "hint": "해안선이 아이콘에서 얼마나 떨어져 있는지"
+        },
+        "warp": {
+          "label": "해안 굴곡",
+          "hint": "해안선이 얼마나 구불구불한지"
+        },
+        "shoal": {
+          "label": "맑은 얕은 물",
+          "hint": "모래 바닥이 비치는 얕은 물의 폭"
+        },
+        "shallow": {
+          "label": "얕은 바다",
+          "hint": "청록색에서 짙은 파랑으로 바뀌는 거리"
+        },
+        "kayaks": {
+          "label": "카약",
+          "unit": "척"
+        },
+        "birds": {
+          "label": "바닷새",
+          "hint": "하늘을 미끄러지듯 날며 맴도는 갈매기",
+          "unit": "마리"
+        }
+      }
+    },
+    "meadow": {
+      "name": "초원",
+      "desc": "펜 담채로 그린 초원. 아이콘은 흰 구름 속에 숨고, 구름 그림자가 짙은 초록으로 드리웁니다",
+      "groups": [
+        "아이콘 주변",
+        "구름",
+        "캐릭터"
+      ],
+      "params": {
+        "sigma": {
+          "label": "구름 크기",
+          "hint": "아이콘을 감싼 구름이 얼마나 넓게 퍼지는지"
+        },
+        "cover": {
+          "label": "초원 위 구름",
+          "hint": "탁 트인 초원 위로 떠다니는 구름의 양"
+        },
+        "flow": {
+          "label": "흐르는 속도",
+          "hint": "구름이 흘러가고 모양이 바뀌는 빠르기"
+        },
+        "showBoy": {
+          "label": "소년 표시",
+          "hint": "연과 함께 소년을 보이거나 숨깁니다",
+          "options": [
+            "숨기기",
+            "보이기"
+          ]
+        },
+        "showCat": {
+          "label": "고양이 표시",
+          "hint": "풀밭에 누워 있는 작은 검은 고양이",
+          "options": [
+            "숨기기",
+            "보이기"
+          ]
+        }
+      }
+    }
+  }
+}

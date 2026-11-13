@@ -102,7 +102,7 @@
     "trayAutostart": "开机自动启动",
     "trayExit": "退出（恢复原壁纸）",
     "welcomeTitle": "Madang 已在运行",
-    "welcomeBody": "点击右下角托盘里的海边图标{hotkey}打开菜单。\n找不到图标时，点任务栏右侧的 ^ 展开。",
+    "welcomeBody": "点击右下角托盘里的 Madang 图标{hotkey}打开菜单。\n找不到图标时，点任务栏右侧的 ^ 展开。",
     "welcomeHotkey": "，或按 Ctrl+Alt+H，",
     "errNotReady": "壁纸还没准备好",
     "errNoImage": "没有拿到图片",

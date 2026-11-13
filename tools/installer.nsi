@@ -32,22 +32,30 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 Deskland authors and
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
-!insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "Korean"
+!insertmacro MUI_LANGUAGE "SimpChinese"
 LangString LaunchApp ${LANG_SIMPCHINESE} "启动 Madang"
 LangString LaunchApp ${LANG_ENGLISH} "Launch Madang"
+LangString LaunchApp ${LANG_KOREAN} "Madang 실행"
 LangString AppFiles ${LANG_SIMPCHINESE} "Madang（沙滩和草地）"
 LangString AppFiles ${LANG_ENGLISH} "Madang (Beach and Meadow)"
+LangString AppFiles ${LANG_KOREAN} "Madang (해변, 초원)"
 LangString DesktopShortcut ${LANG_SIMPCHINESE} "桌面快捷方式"
 LangString DesktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
+LangString DesktopShortcut ${LANG_KOREAN} "바탕화면 바로 가기"
 LangString NeedX64 ${LANG_SIMPCHINESE} "需要 64 位 Windows 10 或更高版本。"
 LangString NeedX64 ${LANG_ENGLISH} "64-bit Windows 10 or later is required."
+LangString NeedX64 ${LANG_KOREAN} "64비트 Windows 10 이상이 필요합니다."
 LangString CloseFailed ${LANG_SIMPCHINESE} "请退出正在运行的 Madang 后重试。"
 LangString CloseFailed ${LANG_ENGLISH} "Please exit Madang and retry."
+LangString CloseFailed ${LANG_KOREAN} "실행 중인 Madang을 종료한 뒤 다시 시도해 주세요."
 LangString RuntimeFailed ${LANG_SIMPCHINESE} "WebView2 安装未完成。请连接网络，安装 Microsoft Edge WebView2 Runtime 后重试。"
 LangString RuntimeFailed ${LANG_ENGLISH} "WebView2 setup did not complete. Connect to the internet, install Microsoft Edge WebView2 Runtime, and retry."
+LangString RuntimeFailed ${LANG_KOREAN} "WebView2 설치를 마치지 못했습니다. 인터넷에 연결해 Microsoft Edge WebView2 Runtime을 설치한 뒤 다시 시도해 주세요."
 LangString InstallingRuntime ${LANG_SIMPCHINESE} "正在安装 Microsoft Edge WebView2 Runtime（需要联网）..."
 LangString InstallingRuntime ${LANG_ENGLISH} "Installing Microsoft Edge WebView2 Runtime (internet required)..."
+LangString InstallingRuntime ${LANG_KOREAN} "Microsoft Edge WebView2 Runtime 설치 중 (인터넷 필요)..."
 
 Function .onInit
   ${IfNot} ${RunningX64}
