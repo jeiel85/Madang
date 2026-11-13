@@ -99,6 +99,7 @@
     "traySettings": "Settings…",
     "trayPause": "Pause animation",
     "trayReload": "Reload",
+    "trayAllMonitors": "Show on all monitors",
     "trayAutostart": "Start with Windows",
     "trayExit": "Exit (restore wallpaper)",
     "welcomeTitle": "Madang is running",

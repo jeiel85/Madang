@@ -41,6 +41,7 @@ const TASKBAR = 48;
 const QS = new URLSearchParams(location.search);
 const WALL = QS.has('wallpaper');        // 바탕화면 호스트가 불러옴
 const PREVIEW = QS.has('preview');       // 설정 창의 미리보기(iframe)
+const SEED_OFF = (+QS.get('monitor') || 0) * 7919;   // 모니터마다 다른 풍경: 호스트가 보조 모니터 창에 monitor=1,2…를 붙인다
 // 기본값은 themes.json의 default와 같아야 한다. quality·cap30은 설정에 내보내지 않는다
 const P = {
   spacing: 180, lines: 0.55, density: 1, twinkle: 0.6, milky: 0.7, meteors: 3,
@@ -625,7 +626,7 @@ function reseed(v) {
   if (iconsSeen) commit(true);
 }
 function applySettings(v) {
-  if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
+  if (typeof v.seed === 'number' && v.seed + SEED_OFF !== seed) reseed(v.seed + SEED_OFF);
   let changed = false;
   for (const key in v) {
     if ((!SLIDER_KEYS.includes(key) && !DISPLAY_KEYS.includes(key)) || typeof v[key] !== typeof P[key] || P[key] === v[key]) continue;

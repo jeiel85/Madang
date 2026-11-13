@@ -216,6 +216,7 @@ static class Settings
     static readonly string FilePath = Path.Combine(Log.DataDir, "settings.json");
     public static string Theme = "beach";
     public static string Lang = "auto";                // 界面语言："auto"（跟随系统）或 I18n.Supported 里的一种
+    public static bool AllMonitors = true;             // 모든 모니터에 배경화면을 띄울지(끄면 주 모니터만)
     public static Dictionary<string, Dictionary<string, object>> Params = new Dictionary<string, Dictionary<string, object>>();
 
     public static void Load()
@@ -228,6 +229,7 @@ static class Settings
             object v;
             if (root.TryGetValue("theme", out v) && v is string) Theme = (string)v;
             if (root.TryGetValue("lang", out v) && v is string) Lang = (string)v;
+            if (root.TryGetValue("allMonitors", out v) && v is bool) AllMonitors = (bool)v;
             if (root.TryGetValue("params", out v) && v is Dictionary<string, object>)
                 foreach (var kv in (Dictionary<string, object>)v)
                 {
@@ -244,7 +246,7 @@ static class Settings
         try
         {
             Directory.CreateDirectory(Log.DataDir);
-            File.WriteAllText(FilePath, Json.Stringify(Json.Obj("version", 1, "theme", Theme, "lang", Lang, "params", Params)), new UTF8Encoding(false));
+            File.WriteAllText(FilePath, Json.Stringify(Json.Obj("version", 1, "theme", Theme, "lang", Lang, "allMonitors", AllMonitors, "params", Params)), new UTF8Encoding(false));
         }
         catch (Exception ex) { Log.Write("保存设置失败：" + ex.Message); }
     }
@@ -318,14 +320,17 @@ class HostContext : ApplicationContext
 
     readonly string pageDir;
     readonly NotifyIcon tray;
-    readonly MenuItem pauseItem, autoStartItem, settingsItem, reloadItem, exitItem;
+    readonly MenuItem pauseItem, autoStartItem, settingsItem, reloadItem, allMonitorsItem, exitItem;
     readonly System.Windows.Forms.Timer watch;
     readonly EventWaitHandle exitEvent, menuEvent, settingsEvent;
     readonly HotkeyWindow hotkey = new HotkeyWindow();
     readonly Queue<DateTime> restarts = new Queue<DateTime>();
-    WallpaperForm form, dead;
+    // 모니터마다 배경화면 창 하나. [0]은 항상 주 모니터(설정 창 미리보기·공유는 이 창 기준)
+    readonly List<WallpaperForm> forms = new List<WallpaperForm>(), dead = new List<WallpaperForm>();
+    WallpaperForm Primary { get { return forms.Count > 0 ? forms[0] : null; } }
     SettingsForm settingsWin;
-    DateTime nextStart = DateTime.MaxValue, saveDue = DateTime.MaxValue;
+    DateTime nextStart = DateTime.MaxValue, saveDue = DateTime.MaxValue, displayDue = DateTime.MaxValue;
+    volatile bool displayChanged;                       // 모니터 연결·해상도 변경(SystemEvents 스레드에서 표시만 하고 Watch에서 처리)
     bool manualPause, exiting;
     string autoStartSw;                                 // 开机自启没跑起来（只在手动打开时检查）：正在运行的安全软件名（没认出来是 ""）；没问题是 null
     string updateVersion, updateUrl, updateStatus = "", updateError = "";
@@ -351,8 +356,16 @@ class HostContext : ApplicationContext
         {
             manualPause = !manualPause;
             pauseItem.Checked = manualPause;
-            if (form != null) form.SetManualPause(manualPause);
+            foreach (var f in forms) f.SetManualPause(manualPause);
         });
+        allMonitorsItem = new MenuItem(I18n.T("trayAllMonitors"), delegate
+        {
+            Settings.AllMonitors = !Settings.AllMonitors;
+            allMonitorsItem.Checked = Settings.AllMonitors;
+            SaveSoon();
+            RestartForms(Settings.AllMonitors ? "모든 모니터에 표시" : "주 모니터에만 표시");
+        });
+        allMonitorsItem.Checked = Settings.AllMonitors;
         autoStartItem = new MenuItem(I18n.T("trayAutostart"), delegate { SetAutoStart(!autoStartItem.Checked); });
         autoStartItem.Checked = IsAutoStart();
         if (autoStartItem.Checked && AutoStartValue() != "")
@@ -379,7 +392,8 @@ class HostContext : ApplicationContext
         tray.ContextMenu = new ContextMenu(new[] {
             settingsItem,
             pauseItem,
-            reloadItem = new MenuItem(I18n.T("trayReload"), delegate { if (form != null) form.Reload(); }),
+            reloadItem = new MenuItem(I18n.T("trayReload"), delegate { foreach (var f in forms) f.Reload(); }),
+            allMonitorsItem,
             autoStartItem,
             new MenuItem("-"),
             exitItem = new MenuItem(I18n.T("trayExit"), delegate { Exit(); }),
@@ -393,9 +407,13 @@ class HostContext : ApplicationContext
         watch.Interval = 500;
         watch.Tick += delegate { Watch(); };
         watch.Start();
-        StartForm();
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        StartForms();
         if (showSettings) OpenSettings();                // 用户双击程序启动：直接打开设置
     }
+
+    // 모니터를 꽂거나 뽑거나 해상도·배치가 바뀌면 이벤트가 여러 번 오므로 잠깐 기다렸다가 한 번만 다시 붙인다
+    void OnDisplaySettingsChanged(object sender, EventArgs e) { displayChanged = true; }
 
     // 换了界面语言：托盘菜单的文字跟着换
     void ApplyTrayTexts()
@@ -403,6 +421,7 @@ class HostContext : ApplicationContext
         settingsItem.Text = I18n.T("traySettings");
         pauseItem.Text = I18n.T("trayPause");
         reloadItem.Text = I18n.T("trayReload");
+        allMonitorsItem.Text = I18n.T("trayAllMonitors");
         autoStartItem.Text = I18n.T("trayAutostart");
         exitItem.Text = I18n.T("trayExit");
     }
@@ -479,15 +498,18 @@ class HostContext : ApplicationContext
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
                     "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys)));
                 if (updateVersion != null) PostUpdateState();
-                if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
+                if (Primary != null && Primary.LastIcons != "") settingsWin.Post(Primary.LastIcons);
                 break;
             case "set":
             {
                 string theme = m["theme"] as string, key = m["key"] as string;
                 if (theme == null || key == null) return;
                 Settings.For(theme)[key] = m["value"];
-                if (theme == Settings.Theme && form != null)
-                    form.Post(Json.Stringify(Json.Obj("t", "settings", "v", Json.Obj(key, m["value"]))));
+                if (theme == Settings.Theme)
+                {
+                    string msg = Json.Stringify(Json.Obj("t", "settings", "v", Json.Obj(key, m["value"])));
+                    foreach (var f in forms) f.Post(msg);
+                }
                 SaveSoon();
                 break;
             }
@@ -496,7 +518,7 @@ class HostContext : ApplicationContext
                 string theme = m["theme"] as string;
                 if (theme == null) return;
                 Settings.Params.Remove(theme);
-                if (theme == Settings.Theme && form != null) form.Post("{\"t\":\"reset\"}");
+                if (theme == Settings.Theme) foreach (var f in forms) f.Post("{\"t\":\"reset\"}");
                 SaveSoon();
                 Log.Write("恢复默认设置：" + theme);
                 break;
@@ -514,7 +536,7 @@ class HostContext : ApplicationContext
                 if (page == null || id == Settings.Theme) return;
                 Settings.Theme = id;
                 SaveSoon();
-                if (form != null) form.LoadPage(page);
+                foreach (var f in forms) f.LoadPage(page);
                 Log.Write("切换主题：" + id);
                 break;
             }
@@ -532,13 +554,13 @@ class HostContext : ApplicationContext
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "lang", "v", Settings.Lang, "eff", I18n.Code, "sys", I18n.Sys)));
                 break;
             }
-            case "share":
-                if (form == null) { PostShareResult(false, null, I18n.T("errNotReady")); break; }
-                form.RequestSnapshot(OnShareImage);
+            case "share":                                   // 공유는 주 모니터 화면으로
+                if (Primary == null) { PostShareResult(false, null, I18n.T("errNotReady")); break; }
+                Primary.RequestSnapshot(OnShareImage);
                 break;
             case "shareVideo":
-                if (form == null) { PostShareResult(false, null, I18n.T("errNotReady")); break; }
-                form.RequestRecording(OnShareVideo);
+                if (Primary == null) { PostShareResult(false, null, I18n.T("errNotReady")); break; }
+                Primary.RequestRecording(OnShareVideo);
                 break;
             case "openShare":
                 if (lastShare != null && File.Exists(lastShare)) Process.Start(lastShare);
@@ -763,7 +785,22 @@ class HostContext : ApplicationContext
         autoStartItem.Checked = IsAutoStart();
     }
 
-    void StartForm()
+    // 배경화면을 띄울 모니터: 주 모니터가 먼저, 나머지는 왼쪽→오른쪽, 위→아래 순
+    static List<Screen> TargetScreens()
+    {
+        var list = new List<Screen> { Screen.PrimaryScreen };
+        if (!Settings.AllMonitors) return list;
+        var others = new List<Screen>();
+        foreach (Screen s in Screen.AllScreens) if (!s.Primary) others.Add(s);
+        others.Sort(delegate(Screen a, Screen b)
+        {
+            return a.Bounds.X != b.Bounds.X ? a.Bounds.X.CompareTo(b.Bounds.X) : a.Bounds.Y.CompareTo(b.Bounds.Y);
+        });
+        list.AddRange(others);
+        return list;
+    }
+
+    void StartForms()
     {
         nextStart = DateTime.MaxValue;
         if (!ThemeAllowed(Settings.Theme)) Settings.Theme = ThemeAllowed("beach") ? "beach" : "meadow";
@@ -774,22 +811,50 @@ class HostContext : ApplicationContext
             nextStart = DateTime.Now.AddSeconds(5);
             return;
         }
-        form = new WallpaperForm(pageDir, page, manualPause);
-        form.SettingsJson = SettingsMessage;
-        form.IconsChanged += delegate(string json) { if (settingsWin != null) settingsWin.Post(json); };
-        form.RecordProgress += delegate(string p) { if (settingsWin != null) settingsWin.Post("{\"t\":\"recProgress\",\"p\":" + p + "}"); };
-        form.HandleDestroyed += OnFormGone;
-        form.Show();
+        List<Screen> screens = TargetScreens();
+        Log.Write(string.Format("모니터 {0}대 중 {1}대에 배경화면 표시", Screen.AllScreens.Length, screens.Count));
+        for (int i = 0; i < screens.Count; i++)
+        {
+            var f = new WallpaperForm(pageDir, page, manualPause, screens[i].Bounds, i);
+            f.SettingsJson = SettingsMessage;
+            if (i == 0)
+            {
+                f.IconsChanged += delegate(string json) { if (settingsWin != null) settingsWin.Post(json); };
+                f.RecordProgress += delegate(string p) { if (settingsWin != null) settingsWin.Post("{\"t\":\"recProgress\",\"p\":" + p + "}"); };
+            }
+            f.HandleDestroyed += OnFormGone;
+            forms.Add(f);
+            f.Show();
+        }
+    }
+
+    // 계획된 철거(다시 붙이기·종료): 목록에서 먼저 빼서 OnFormGone이 재시도로 세지 않게 한다
+    void StopForms()
+    {
+        foreach (var f in forms.ToArray())
+        {
+            forms.Remove(f);
+            dead.Add(f);
+            f.Shutdown();
+        }
+    }
+
+    void RestartForms(string reason)
+    {
+        if (exiting) return;
+        StopForms();
+        Log.Write(reason + "：배경화면 창을 다시 붙입니다");
+        nextStart = DateTime.Now.AddSeconds(1);
     }
 
     void OnFormGone(object sender, EventArgs e)
     {
         var f = (WallpaperForm)sender;
-        if (f != form) return;
-        form = null;
-        dead = f;                                        // 稍后在计时器里释放，避免在销毁回调里重入
+        if (!forms.Remove(f)) return;                    // 이미 계획적으로 내린 창
+        dead.Add(f);                                     // 稍后在计时器里释放，避免在销毁回调里重入
         if (exiting) return;
         if (f.Fatal) { Exit(); return; }
+        StopForms();                                     // 한 모니터 창이 없어지면 나머지도 내리고 함께 다시 붙인다
 
         // 1 分钟内反复被销毁：不再重试，避免和资源管理器打架
         restarts.Enqueue(DateTime.Now);
@@ -807,12 +872,15 @@ class HostContext : ApplicationContext
 
     void Watch()
     {
-        if (dead != null) { try { dead.Dispose(); } catch { } dead = null; }
+        foreach (var f in dead) { try { f.Dispose(); } catch { } }
+        dead.Clear();
         if (exitEvent.WaitOne(0)) { Exit(); return; }
         if (menuEvent.WaitOne(0)) ShowMenu();
         if (settingsEvent.WaitOne(0)) OpenSettings();
         if (DateTime.Now >= saveDue) { saveDue = DateTime.MaxValue; Settings.Save(); }
-        if (form == null && !exiting && DateTime.Now >= nextStart) StartForm();
+        if (displayChanged) { displayChanged = false; displayDue = DateTime.Now.AddSeconds(1.5); }
+        if (DateTime.Now >= displayDue) { displayDue = DateTime.MaxValue; RestartForms("모니터 구성이 바뀜"); }
+        if (forms.Count == 0 && !exiting && DateTime.Now >= nextStart) StartForms();
     }
 
     void Exit()
@@ -820,11 +888,13 @@ class HostContext : ApplicationContext
         if (exiting) return;
         exiting = true;
         watch.Stop();
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         if (saveDue != DateTime.MaxValue) Settings.Save();
         if (settingsWin != null) { try { settingsWin.Close(); } catch { } }
         hotkey.Dispose();
         tray.Visible = false;
-        if (form != null) form.Shutdown();
+        StopForms();
+        IconReader.DisposeShared();
         Log.Write("退出");
         ExitThread();
     }
@@ -987,8 +1057,9 @@ class WallpaperForm : Form
     readonly WebView2 web;
     readonly System.Windows.Forms.Timer iconTimer, fgTimer;
     readonly string pageDir;
-    readonly IconReader reader = new IconReader();
-    Rectangle screen;
+    readonly Rectangle screen;                          // 이 창이 맡은 모니터(가상 화면 좌표, 물리 픽셀)
+    readonly int monitorIndex;                          // 0 = 주 모니터. 페이지에 넘겨 모니터마다 다른 풍경(시드)을 쓰게 한다
+    static readonly List<IntPtr> ourWindows = new List<IntPtr>();   // 붙어 있는 배경화면 창 전부(겹침 순서 검사용)
     IntPtr parentHwnd, insertAfter;
     string lastIcons = "";
     int lastPause = -1;
@@ -1002,11 +1073,13 @@ class WallpaperForm : Form
     public string LastIcons { get { return lastIcons; } }
     protected override bool ShowWithoutActivation { get { return true; } }
 
-    public WallpaperForm(string pageDir, string page, bool manualPause)
+    public WallpaperForm(string pageDir, string page, bool manualPause, Rectangle screen, int monitorIndex)
     {
         this.pageDir = pageDir;
         this.page = page;
         this.manualPause = manualPause;
+        this.screen = screen;
+        this.monitorIndex = monitorIndex;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -1115,7 +1188,8 @@ class WallpaperForm : Form
         Log.Write("WebView2 失效（运行时更新或进程退出），重新挂载壁纸窗口：" + ex.Message);
         Shutdown();
     }
-    string PageUrl { get { return "https://app.local/" + page + "?wallpaper=1"; } }
+    string PageUrl { get { return "https://app.local/" + page + "?wallpaper=1" + (monitorIndex > 0 ? "&monitor=" + monitorIndex : ""); } }
+    string LogTag { get { return monitorIndex > 0 ? "[모니터 " + (monitorIndex + 1) + "] " : ""; } }
 
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
@@ -1164,7 +1238,7 @@ class WallpaperForm : Form
             core.Navigate(PageUrl);
             iconTimer.Start();
             fgTimer.Start();
-            Log.Write("WebView2 就绪：" + core.Environment.BrowserVersionString);
+            Log.Write(LogTag + "WebView2 就绪：" + core.Environment.BrowserVersionString);
         }
         catch (Exception ex)
         {
@@ -1176,11 +1250,16 @@ class WallpaperForm : Form
 
     void Fail(string msg)
     {
-        Log.Write(msg);
-        MessageBox.Show(msg + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Madang");
+        Log.Write(LogTag + msg);
+        if (!failShown)                                 // 모니터가 여럿이어도 오류 창은 한 번만
+        {
+            failShown = true;
+            MessageBox.Show(msg + "\n\n" + I18n.T("errSeeLog", "path", Log.FilePath), "Madang");
+        }
         Fatal = true;
         Shutdown();
     }
+    static bool failShown;
 
     // ---------------------------------------------------------------- 挂到壁纸层
     // 两种桌面结构：
@@ -1216,7 +1295,7 @@ class WallpaperForm : Form
 
     bool AttachToDesktop()
     {
-        screen = Screen.PrimaryScreen.Bounds;          // 进程是 DPI 感知的 → 物理像素
+        // screen은 생성할 때 받은 모니터 영역(进程是 DPI 感知的 → 物理像素)。부모 창은 가상 화면 전체에 걸쳐 있다
         IntPtr progman = Native.FindWindow("Progman", null);
         if (progman == IntPtr.Zero) { Log.Write("找不到 Progman"); return false; }
         IntPtr defView = Native.FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
@@ -1273,6 +1352,7 @@ class WallpaperForm : Form
         Native.ScreenToClient(parentHwnd, ref pt);
         Native.SetWindowPos(Handle, insertAfter, pt.X, pt.Y, screen.Width, screen.Height,
             Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW | Native.SWP_FRAMECHANGED);
+        if (!ourWindows.Contains(Handle)) ourWindows.Add(Handle);
         EnsureZOrder();
 
         if (raised)
@@ -1287,8 +1367,21 @@ class WallpaperForm : Form
             winEventHook = Native.SetWinEventHook(0x8000 /* OBJECT_CREATE */, 0x8004 /* OBJECT_REORDER */, IntPtr.Zero,
                 winEventProc, pid, 0, 0 /* WINEVENT_OUTOFCONTEXT */);
         }
-        Log.Write(string.Format("已挂载（{0}），屏幕 {1}", mode, screen));
+        Log.Write(string.Format("{0}已挂载（{1}），屏幕 {2}", LogTag, mode, screen));
         return true;
+    }
+
+    // zAnchor 바로 아래에 이어진 우리 배경화면 창 묶음 안에 이 창이 있는지(모니터가 여럿이면 순서끼리 다투지 않게)
+    bool InOurRun()
+    {
+        IntPtr w = Native.GetWindow(zAnchor, 2 /* GW_HWNDNEXT */);
+        for (int i = 0; i <= ourWindows.Count && w != IntPtr.Zero; i++)
+        {
+            if (w == Handle) return true;
+            if (!ourWindows.Contains(w)) return false;
+            w = Native.GetWindow(w, 2);
+        }
+        return false;
     }
 
     // 守住顺序：紧跟在 zAnchor（图标列表 / 图标层）下面；Progman 挂法还要把系统壁纸层推到最底（被打乱才修）
@@ -1297,7 +1390,7 @@ class WallpaperForm : Form
     {
         if (!raised || zAnchor == IntPtr.Zero || !Native.IsWindow(zAnchor)) return;
         bool fixedAny = false;
-        if (Native.GetWindow(zAnchor, 2 /* GW_HWNDNEXT */) != Handle)
+        if (!InOurRun())
         {
             Native.SetWindowPos(Handle, zAnchor, 0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
             fixedAny = true;
@@ -1323,14 +1416,16 @@ class WallpaperForm : Form
         EnsureZOrder();
         if (web.CoreWebView2 == null) return;
         bool visible;
-        List<Native.RECT> rects = reader.Read(out visible);
+        List<Native.RECT> rects = IconReader.ReadShared(out visible);
         if (rects == null) return;
         var sb = new StringBuilder();
         sb.Append("{\"t\":\"icons\",\"vis\":").Append(visible ? "true" : "false").Append(",\"r\":[");
-        for (int i = 0; i < rects.Count; i++)
+        int n = 0;
+        foreach (Native.RECT r in rects)
         {
-            Native.RECT r = rects[i];
-            if (i > 0) sb.Append(',');
+            // 아이콘은 가운데가 놓인 모니터 한 곳에만 속한다. 좌표는 그 모니터의 왼쪽 위 기준
+            if (!screen.Contains((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2)) continue;
+            if (n++ > 0) sb.Append(',');
             sb.Append('[').Append(r.Left - screen.X).Append(',').Append(r.Top - screen.Y).Append(',')
               .Append(r.Right - screen.X).Append(',').Append(r.Bottom - screen.Y).Append(']');
         }
@@ -1340,7 +1435,7 @@ class WallpaperForm : Form
         lastIcons = json;
         if (IconsChanged != null) IconsChanged(json);
         Post(json);
-        Log.Write(string.Format("图标变化：{0} 个，可见={1}", rects.Count, visible));
+        Log.Write(string.Format("{0}图标变化：{1} 个，可见={2}", LogTag, n, visible));
     }
 
     // ---------------------------------------------------------------- 最大化 / 全屏时暂停
@@ -1370,7 +1465,7 @@ class WallpaperForm : Form
         if (p == lastPause) return;
         lastPause = p;
         Post("{\"t\":\"pause\",\"v\":" + (pause ? "true" : "false") + "}");
-        Log.Write(pause ? "暂停（有窗口最大化 / 全屏，或手动暂停）" + (pauseBy == "" ? "" : "，前台窗口类 " + pauseBy) : "继续播放");
+        Log.Write(LogTag + (pause ? "暂停（有窗口最大化 / 全屏，或手动暂停）" + (pauseBy == "" ? "" : "，前台窗口类 " + pauseBy) : "继续播放"));
     }
 
     // ---------------------------------------------------------------- 退出：拆掉窗口，让资源管理器重画原壁纸
@@ -1379,10 +1474,9 @@ class WallpaperForm : Form
         if (shuttingDown) return;
         shuttingDown = true;
         iconTimer.Stop(); fgTimer.Stop();
-        reader.Dispose();
         IntPtr parent = parentHwnd;
         try { web.Dispose(); } catch { }
-        if (IsHandleCreated) { Native.SetParent(Handle, IntPtr.Zero); Hide(); }
+        if (IsHandleCreated) { ourWindows.Remove(Handle); Native.SetParent(Handle, IntPtr.Zero); Hide(); }
         // 不改动壁纸设置（幻灯片 / 聚焦壁纸也不受影响），只让资源管理器重画
         if (parent != IntPtr.Zero && Native.IsWindow(parent))
             Native.RedrawWindow(parent, IntPtr.Zero, IntPtr.Zero, 0x1 | 0x4 | 0x80 | 0x100);
@@ -1393,7 +1487,7 @@ class WallpaperForm : Form
     {
         if (winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(winEventHook); winEventHook = IntPtr.Zero; }
         iconTimer.Stop(); fgTimer.Stop();
-        reader.Dispose();
+        ourWindows.Remove(Handle);
         base.OnHandleDestroyed(e);
     }
 }
@@ -1402,6 +1496,27 @@ class WallpaperForm : Form
 class IconReader : IDisposable
 {
     IntPtr listView, proc, mem;
+
+    // 모니터별 배경화면 창이 함께 쓰는 리더: 짧은 시간 안의 요청은 한 번 읽은 결과를 나눠 준다(탐색기에 보내는 메시지를 줄인다)
+    static IconReader shared;
+    static List<Native.RECT> cached;
+    static bool cachedVisible;
+    static int cachedAt;
+    public static List<Native.RECT> ReadShared(out bool visible)
+    {
+        int now = Environment.TickCount;
+        if (cached != null && unchecked(now - cachedAt) < 200) { visible = cachedVisible; return cached; }
+        if (shared == null) shared = new IconReader();
+        cached = shared.Read(out visible);
+        cachedVisible = visible;
+        cachedAt = now;
+        return cached;
+    }
+    public static void DisposeShared()
+    {
+        if (shared != null) { shared.Dispose(); shared = null; }
+        cached = null;
+    }
 
     static IntPtr FindListView()
     {

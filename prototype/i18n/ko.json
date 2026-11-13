@@ -99,6 +99,7 @@
     "traySettings": "설정…",
     "trayPause": "애니메이션 일시정지",
     "trayReload": "다시 불러오기",
+    "trayAllMonitors": "모든 모니터에 표시",
     "trayAutostart": "Windows 시작 시 실행",
     "trayExit": "종료 (원래 배경화면으로)",
     "welcomeTitle": "Madang이 실행 중입니다",

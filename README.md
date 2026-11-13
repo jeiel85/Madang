@@ -26,12 +26,12 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 ## 앞으로 할 일
 
 - 새 테마 (원작의 유료 테마를 재현하지 않는 자체 컨셉)
-- 멀티 모니터 지원
 
 ## 기능
 
 - **아이콘 적응형 풍경:** 실제 바탕화면 아이콘 위치를 읽어, 아이콘이 움직이면 풍경이 부드럽게 바뀝니다.
 - **바탕화면 상주용 설계:** 트레이 메뉴, 로그인 시 자동 시작, 창을 최대화하거나 전체 화면이면 자동 일시정지.
+- **멀티 모니터:** 모니터마다 그 모니터의 아이콘에 맞춘 풍경을 따로 그립니다. 모니터마다 풍경이 다르고, 최대화된 창이 있는 모니터만 멈춥니다. 트레이 메뉴의 "모든 모니터에 표시"를 끄면 주 모니터에만 그립니다.
 - **개인정보를 지키는 공유:** 이미지·애니메이션 공유는 예시 아이콘과 색 블록만 쓰고, 실제 바탕화면이나 파일 이름은 찍지 않습니다.
 - **한국어 화면:** 한국어, 영어, 간체 중국어를 지원하고 기본값은 Windows 표시 언어를 따릅니다.
 - **독립 설치:** 설치 폴더, 설정, 시작 프로그램 항목, 실행 인스턴스가 Deskland와 분리되어 있어 함께 설치해도 충돌하지 않습니다.
@@ -44,7 +44,7 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 - 첫 빌드 때 WebView2 개발 라이브러리를 내려받기 위한 인터넷 연결
 - 브라우저 미리보기를 쓸 때만 Node.js
 
-현재는 **주 모니터**에만 그리며, 내장 그래픽에서 30fps를 목표로 합니다.
+내장 그래픽에서 모니터당 30fps를 목표로 합니다. 모니터가 많을수록 그래픽 부하도 늘어납니다.
 
 ## 소스에서 빌드
 
@@ -100,7 +100,8 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 
 ## 알려진 제한
 
-- 주 모니터만 지원합니다.
+- 모니터마다 배율(DPI)이 다르면 보조 모니터의 풍경 크기가 주 모니터 배율을 따를 수 있습니다(같은 배율 모니터 3대로만 확인했습니다).
+- 설정 창의 미리보기와 공유 이미지·영상은 주 모니터 화면 기준입니다.
 - Windows 추천(Spotlight)이나 배경화면 슬라이드 쇼를 쓰면 Windows가 이미지를 바꿀 때 잠깐 깜박일 수 있습니다.
 
 ## 라이선스와 출처
@@ -119,7 +120,8 @@ Madang ("courtyard" in Korean) turns the space around your icons into a living l
 
 - **Themes:** Constellations (Madang's own night sky, where your icons become stars), Beach and Meadow, with every setting saved between sessions.
 - **Languages:** Korean, English and Simplified Chinese, following the Windows display language by default.
-- **Planned:** original new themes, multi-monitor support.
+- **Multiple monitors:** every monitor gets its own scene shaped around its own icons; turn off "Show on all monitors" in the tray menu to use the primary monitor only.
+- **Planned:** more original themes.
 - **Requirements:** 64-bit Windows 10/11 and the Microsoft Edge WebView2 Runtime. Building uses the C# compiler bundled with Windows.
 
 ```powershell
