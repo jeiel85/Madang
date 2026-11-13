@@ -4,7 +4,9 @@
 
 **바탕화면 아이콘이 풍경의 일부가 되는 Windows 라이브 배경화면.**
 
-Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮기거나 추가·삭제하면 해변, 초원, 구름과 그림자가 아이콘 주위로 실시간으로 다시 자리를 잡습니다. 모든 계산은 PC 안에서 이뤄지고, AI·계정·API 키가 필요 없습니다.
+Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮기거나 추가·삭제하면 별자리, 눈더미, 해변, 구름이 아이콘 주위로 실시간으로 다시 자리를 잡습니다. 모든 계산은 PC 안에서 이뤄지고, AI·계정·API 키가 필요 없습니다.
+
+**[Windows용 내려받기 (최신 릴리스)](https://github.com/jeiel85/Madang/releases/latest)** · 64비트 Windows 10/11 · 서명되지 않은 설치 파일이라 SmartScreen 경고가 나올 수 있습니다.
 
 **한국어** · [English](#english)
 
@@ -86,9 +88,9 @@ node prototype\serve.mjs
 powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 ```
 
-첫 빌드 때 포터블 NSIS와 Microsoft WebView2 부트스트래퍼를 내려받습니다. 결과물은 SHA256 체크섬, 대응 소스 ZIP과 함께 `dist/`에 생깁니다. 설치 위치는 현재 사용자의 `Programs\Madang`이며 관리자 권한이 필요 없습니다.
+첫 빌드 때 포터블 NSIS(SHA256 고정)와 Microsoft WebView2 부트스트래퍼(Microsoft 서명 확인)를 내려받습니다. 설치 파일, SHA256, 파일 목록이 `dist/`에 생기고, 대응 소스 ZIP은 설치 파일 안에도 함께 들어갑니다. 설치 위치는 현재 사용자의 `Programs\Madang`이며 관리자 권한이 필요 없습니다. 제거해도 사용자 설정은 남습니다.
 
-아직 공개 릴리스는 없습니다.
+배포된 설치 파일은 [Releases](https://github.com/jeiel85/Madang/releases)에 있습니다. 코드 서명이 없어서 Windows SmartScreen이 경고할 수 있으니, 함께 올린 SHA256으로 파일을 확인하세요.
 
 ## 폴더 구조
 
@@ -122,7 +124,9 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 
 **A living Windows wallpaper that makes your desktop icons part of the scenery.**
 
-Madang ("courtyard" in Korean) turns the space around your icons into a living landscape. Move, add or remove an icon and the beach, meadow, clouds and shadows reshape around it in real time — locally, without AI, an account or an API key.
+Madang ("courtyard" in Korean) turns the space around your icons into a living landscape. Move, add or remove an icon and the constellations, snow drifts, beach and clouds reshape around it in real time — locally, without AI, an account or an API key.
+
+**[Download for Windows (latest release)](https://github.com/jeiel85/Madang/releases/latest)** · 64-bit Windows 10/11 · The installer is unsigned, so Windows SmartScreen may show a warning.
 
 > Madang is an **independent project** based on [Deskland Preview](https://github.com/BLEZZ0102/Deskland) (GPL-3.0). It is not affiliated with, approved or endorsed by the Deskland authors. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
@@ -137,6 +141,6 @@ powershell -ExecutionPolicy Bypass -File host\build.ps1
 host\bin\Madang.exe
 ```
 
-Settings and logs live in `%LOCALAPPDATA%\Madang`. Browser preview: `node prototype\serve.mjs`, then open http://localhost:5178/settings.html. Installer: `tools\build-installer.ps1` (no public release yet).
+Settings and logs live in `%LOCALAPPDATA%\Madang`. Browser preview: `node prototype\serve.mjs`, then open http://localhost:5178/settings.html. Installer: `tools\build-installer.ps1`; published builds and SHA256 checksums are on the [Releases](https://github.com/jeiel85/Madang/releases) page.
 
 Source code and bundled theme assets are released under [GPL-3.0](LICENSE).

@@ -35,7 +35,7 @@
 - 호스트 빌드: `powershell -ExecutionPolicy Bypass -File host\build.ps1` → `host/bin/Madang.exe`.
 - 브라우저 미리보기: `node prototype\serve.mjs` → `http://localhost:5178/settings.html`.
 - Windows 호스트 코드는 `host/DesktopHost.cs`. 테마 HTML/JS만 바꿨다면 호스트를 다시 빌드하지 않고 트레이의 "다시 불러오기"로 확인한다.
-- 설치 파일: `powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1` → `dist/`.
+- 설치 파일: `powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1` → `dist/`. NSIS는 SourceForge에서 `-UserAgent 'Wget'`으로 받는다(브라우저처럼 보이면 미러 안내 HTML이 와서 SHA256이 어긋난다). 릴리스용 설치 파일은 커밋한 뒤 빌드해야 안에 든 소스 ZIP이 그 커밋과 같다.
 - 계정 로그인, 구매 복원, 자동 업데이트 확인은 넣지 않는다.
 
 ## 저장소 관리

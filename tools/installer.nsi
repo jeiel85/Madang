@@ -157,4 +157,5 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\Madang"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Madang"
   DeleteRegKey HKCU "Software\Madang\Installer"
+  DeleteRegKey /ifempty HKCU "Software\Madang"
 SectionEnd
