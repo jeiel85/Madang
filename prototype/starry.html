@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Madang · 星座</title>
+<!--
+  Madang · 별자리 테마 (2D 캔버스)
+  - 아이콘이 별이 된다: 아이콘 뒤에 은은한 별빛, 별자리로 뽑힌 아이콘에는 빛줄기
+  - 가까운 별자리 별끼리 선으로 이어진다(최소 신장 트리 + 고리 하나). 선은 아이콘 아래로 지나가지 않는다
+  - 은하수, 배경 별, 산 능선·소나무·한옥 실루엣, 달(아이콘이 적은 쪽 하늘)
+  성능: 아이콘과 무관한 하늘(bg) → 아이콘 층을 더한 정적 그림(stat)을 캐시하고,
+        매 프레임은 반짝이는 별·빛줄기·별똥별이 있는 작은 사각형만 stat에서 복원한 뒤 다시 그린다.
+        아이콘이 바뀌면 새 정적 그림(next)을 만들어 1~2초 동안 교차 페이드한다.
+  share.js가 쓰는 전역: cv, draw(), icons, W, H, WALL, TASKBAR, commit(), paused, frameN, cacheOK
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1230; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.ghosts #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(255,255,255,.88); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.75); }
+  #hint { position: fixed; left: 12px; bottom: 60px; color: rgba(255,255,255,.55); font: 12px/1.5 "Segoe UI", "Malgun Gothic", sans-serif; display: none; }
+  body.demo #hint { display: block; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="ghosts"></div>
+<div id="hint">R 새로 그리기 · M 달 · L 별자리 선 · 아이콘 끌어서 옮기기</div>
+<script>
+'use strict';
+
+/* ======================================================================
+   설정
+   ====================================================================== */
+const TASKBAR = 48;
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has('wallpaper');        // 바탕화면 호스트가 불러옴
+const PREVIEW = QS.has('preview');       // 설정 창의 미리보기(iframe)
+// 기본값은 themes.json의 default와 같아야 한다. quality·cap30은 설정에 내보내지 않는다
+const P = {
+  spacing: 180, lines: 0.55, density: 1, twinkle: 0.6, milky: 0.7, meteors: 3,
+  showMoon: 1, showHorizon: 1, adaptive: 1,
+  quality: 2, cap30: true,
+};
+const DEFAULTS = Object.assign({}, P);
+const SLIDER_KEYS = ['spacing', 'lines', 'density', 'twinkle', 'milky', 'meteors'];
+const DISPLAY_KEYS = ['showMoon', 'showHorizon', 'adaptive'];
+const BG_KEYS = ['density', 'milky', 'showHorizon', 'twinkle'];      // 하늘(bg)을 다시 그려야 하는 값
+const ICON_KEYS = ['spacing', 'lines', 'showMoon', 'adaptive'];      // 아이콘 층만 다시 그리면 되는 값
+
+/* ======================================================================
+   난수·노이즈
+   ====================================================================== */
+let seed = (Math.random() * 1e6) | 0;
+function hash2(x, y, k = 0) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed + k, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, k = 0) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, k), b = hash2(ix + 1, iy, k), c = hash2(ix, iy + 1, k), d = hash2(ix + 1, iy + 1, k);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y, k = 0) {
+  let a = 0.5, s = 0;
+  for (let i = 0; i < 4; i++) { s += a * vnoise(x, y, k + i * 7); x = x * 2.03 + 17.1; y = y * 2.03 + 17.1; a *= 0.5; }
+  return s / 0.9375;
+}
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+/* ======================================================================
+   캔버스
+   ====================================================================== */
+const cv = document.getElementById('art');
+const ctx = cv.getContext('2d', { alpha: false });
+const mkCanvas = () => document.createElement('canvas');
+let bgC = mkCanvas(), statC = mkCanvas(), nextC = mkCanvas();
+function fit(c) {                                  // 화면 캔버스와 같은 픽셀 크기로 맞춤
+  if (c.width !== cv.width || c.height !== cv.height) { c.width = cv.width; c.height = cv.height; }
+  return c.getContext('2d');
+}
+let W = innerWidth, H = innerHeight;
+function resize() {
+  W = innerWidth; H = innerHeight;
+  // 미리보기는 페이지를 바탕화면 크기로 배치한 뒤 통째로 줄여 보여 주므로 낮은 해상도면 충분하다
+  const scale = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality);
+  // 캔버스가 실제로 차지하는 크기(소수 포함)로 계산해야 한 픽셀 차이로 흐려지지 않는다
+  const box = cv.getBoundingClientRect();
+  cv.width = Math.round((box.width || W) * scale); cv.height = Math.round((box.height || H) * scale); cv._scale = scale;
+  cacheOK = false;
+}
+
+/* ======================================================================
+   은하수: 1/4 해상도로 한 번 계산해 두고 늘려서 그린다(시드·화면 크기가 바뀔 때만 다시 계산)
+   ====================================================================== */
+const mwC = mkCanvas();
+let mwKey = '', MW = null;
+function buildMilky() {
+  const key = seed + '|' + W + '|' + H;
+  if (key === mwKey) return;
+  mwKey = key;
+  const rnd = mulberry32(seed ^ 0x2545f491);
+  const ang = (32 + 20 * rnd()) * Math.PI / 180 * (rnd() < 0.5 ? -1 : 1);     // 왼쪽 아래 → 오른쪽 위(또는 반대)
+  const dx = Math.cos(ang), dy = -Math.abs(Math.sin(ang)) * Math.sign(ang || 1);
+  MW = { cx: W * (0.38 + 0.24 * rnd()), cy: H * (0.34 + 0.16 * rnd()), dx, dy, nx: -dy, ny: dx, w: Math.min(W, H) * (0.12 + 0.05 * rnd()) };
+  const S = 4, mw = Math.ceil(W / S) + 1, mh = Math.ceil(H / S) + 1;
+  mwC.width = mw; mwC.height = mh;
+  const c = mwC.getContext('2d'), img = c.createImageData(mw, mh), d = img.data;
+  for (let j = 0; j < mh; j++) for (let i = 0; i < mw; i++) {
+    const x = i * S, y = j * S, ox = x - MW.cx, oy = y - MW.cy;
+    const s = ox * MW.dx + oy * MW.dy;
+    let across = ox * MW.nx + oy * MW.ny;
+    const wv = MW.w * (0.7 + 0.7 * vnoise(s * 0.0016 + 3.1, 0.5, 11));
+    across += (vnoise(s * 0.0011 + 7.7, 1.5, 12) - 0.5) * MW.w * 1.5;
+    const b = Math.exp(-(across / wv) * (across / wv));
+    const k = (j * mw + i) * 4;
+    if (b < 0.012) { d[k + 3] = 0; continue; }
+    const n1 = fbm(x * 0.0045, y * 0.0045, 21), n2 = fbm(x * 0.017, y * 0.017, 22);
+    let g = b * (0.3 + 1.0 * n1) + b * b * 0.55 * n2;
+    // 가운데를 따라 흐르는 어두운 먼지띠
+    const lane = Math.exp(-Math.pow((across + (n1 - 0.5) * wv * 0.6) / (wv * 0.2), 2)) * Math.max(0, fbm(x * 0.009, y * 0.009, 23) * 1.7 - 0.5);
+    g *= 1 - Math.min(0.85, lane);
+    const t = Math.min(1, b * 1.2);
+    d[k] = 112 + 143 * t; d[k + 1] = 122 + 104 * t; d[k + 2] = 255 - 62 * t;      // 가장자리는 푸르게, 가운데는 따뜻하게
+    d[k + 3] = Math.min(1, g) * 150;
+  }
+  c.putImageData(img, 0, 0);
+}
+function bandAt(x, y) {
+  const ox = x - MW.cx, oy = y - MW.cy, a = (ox * MW.nx + oy * MW.ny) / MW.w;
+  return Math.exp(-a * a);
+}
+
+/* ======================================================================
+   배경 별
+   ====================================================================== */
+const STAR_COLORS = [[255, 255, 255], [214, 226, 255], [255, 238, 210], [255, 216, 176], [188, 208, 255]];
+let stars = [], starsKey = '';
+function buildStars() {
+  const key = seed + '|' + W + '|' + H + '|' + P.density;
+  if (key === starsKey) return;
+  starsKey = key;
+  const rnd = mulberry32(seed ^ 0x5bd1e995);
+  const want = Math.round(W * H / 1700 * P.density);
+  stars = [];
+  for (let guard = 0; stars.length < want && guard < want * 8; guard++) {
+    const x = rnd() * W, y = rnd() * H;
+    if (rnd() > 0.36 + 0.64 * bandAt(x, y)) continue;                       // 은하수 쪽에 더 많이
+    const u = rnd();
+    stars.push({
+      x, y, r: 0.35 + 1.3 * Math.pow(u, 7), a: 0.3 + 0.7 * rnd(),
+      ci: rnd() < 0.55 ? 0 : 1 + Math.floor(rnd() * 4),
+      w: 0.6 + 2.0 * rnd(), ph: rnd() * 6.283, tw: false,
+    });
+  }
+  // 밝은 별 일부가 반짝인다(많아야 90개)
+  const order = stars.map((_, i) => i).sort((i, j) => stars[j].r * stars[j].a - stars[i].r * stars[i].a);
+  const n = Math.min(90, Math.round(stars.length * 0.09));
+  for (let i = 0; i < n; i++) stars[order[i]].tw = true;
+}
+
+/* ======================================================================
+   스프라이트(캔버스 배율마다 한 번 만든다)
+   ====================================================================== */
+const TINTS = [[255, 224, 178], [226, 234, 255], [172, 202, 255]];
+const SPR_R = 8;                                    // 별 스프라이트 반지름(CSS px)
+const SPIKE_H = 64, SPIKE_V = 26;                   // 빛줄기 반 길이(가로/세로, CSS px)
+let sprK = 0, starSpr = [], spikeSpr = [];
+function ensureSprites(k) {
+  if (k === sprK) return;
+  sprK = k;
+  starSpr = STAR_COLORS.map(col => {
+    const c = mkCanvas(), s = Math.max(4, Math.ceil(SPR_R * 2 * k));
+    c.width = c.height = s;
+    const g = c.getContext('2d'), m = s / 2, gr = g.createRadialGradient(m, m, 0, m, m, m);
+    gr.addColorStop(0, rgba(col, 1)); gr.addColorStop(0.12, rgba(col, 0.95)); gr.addColorStop(0.3, rgba(col, 0.28));
+    gr.addColorStop(0.6, rgba(col, 0.07)); gr.addColorStop(1, rgba(col, 0));
+    g.fillStyle = gr; g.fillRect(0, 0, s, s);
+    return c;
+  });
+  spikeSpr = TINTS.map(col => {
+    const c = mkCanvas(), w = Math.ceil(SPIKE_H * 2 * k), h = Math.ceil(SPIKE_V * 2 * k);
+    c.width = w; c.height = h;
+    const g = c.getContext('2d'), mx = w / 2, my = h / 2;
+    const glow = g.createRadialGradient(mx, my, 0, mx, my, 16 * k);
+    glow.addColorStop(0, rgba(col, 0.9)); glow.addColorStop(0.4, rgba(col, 0.25)); glow.addColorStop(1, rgba(col, 0));
+    g.fillStyle = glow; g.fillRect(mx - 16 * k, my - 16 * k, 32 * k, 32 * k);
+    for (const [len, thick, a] of [[SPIKE_H, 3.2, 0.16], [SPIKE_H, 1.1, 0.8]]) {        // 가로 빛줄기: 넓고 흐린 것 + 가늘고 밝은 것
+      const lg = g.createLinearGradient(mx - len * k, 0, mx + len * k, 0);
+      lg.addColorStop(0, rgba(col, 0)); lg.addColorStop(0.5, rgba(col, a)); lg.addColorStop(1, rgba(col, 0));
+      g.fillStyle = lg; g.fillRect(mx - len * k, my - thick * k / 2, len * 2 * k, thick * k);
+    }
+    for (const [thick, a] of [[3.2, 0.14], [1.1, 0.7]]) {                                // 세로 빛줄기(짧게)
+      const lg = g.createLinearGradient(0, my - SPIKE_V * k, 0, my + SPIKE_V * k);
+      lg.addColorStop(0, rgba(col, 0)); lg.addColorStop(0.5, rgba(col, a)); lg.addColorStop(1, rgba(col, 0));
+      g.fillStyle = lg; g.fillRect(mx - thick * k / 2, my - SPIKE_V * k, thick * k, SPIKE_V * 2 * k);
+    }
+    return c;
+  });
+}
+const starHalf = s => 2.2 + s.r * 4.4;              // 스프라이트로 그릴 때 반 크기(CSS px)
+
+/* ======================================================================
+   하늘(bg): 아이콘과 무관한 부분
+   ====================================================================== */
+function horizonBase() { return H - TASKBAR; }
+function backRidge(x) { return horizonBase() - 62 - 58 * fbm(x * 0.0021 + 3.7, 0.3, 31); }
+function frontRidge(x) { return horizonBase() - 16 - 30 * fbm(x * 0.0042 + 9.1, 0.7, 41); }
+function drawPine(c, x, y, h) {
+  c.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const top = y - h * (0.42 + i * 0.29), half = h * (0.34 - i * 0.08), bot = y - h * (i * 0.27);
+    c.moveTo(x - half, bot); c.lineTo(x, top); c.lineTo(x + half, bot);
+  }
+  c.rect(x - h * 0.03, y - h * 0.12, h * 0.06, h * 0.14);
+  c.fill();
+}
+function drawHanok(c, hx, gy, s) {
+  const w = 150 * s;
+  // 벽
+  c.fillRect(hx - w * 0.36, gy - 18 * s, w * 0.72, 20 * s);
+  // 팔작지붕: 처마 끝이 위로 들린 곡선, 용마루 양끝도 살짝 들린다
+  c.beginPath();
+  c.moveTo(hx - w * 0.56, gy - 27 * s);
+  c.quadraticCurveTo(hx, gy - 12 * s, hx + w * 0.56, gy - 27 * s);            // 아래 처마선
+  c.quadraticCurveTo(hx + w * 0.42, gy - 31 * s, hx + w * 0.33, gy - 47 * s); // 오른쪽 지붕면
+  c.lineTo(hx + w * 0.36, gy - 52 * s);
+  c.quadraticCurveTo(hx, gy - 46 * s, hx - w * 0.36, gy - 52 * s);            // 용마루
+  c.lineTo(hx - w * 0.33, gy - 47 * s);
+  c.quadraticCurveTo(hx - w * 0.42, gy - 31 * s, hx - w * 0.56, gy - 27 * s); // 왼쪽 지붕면
+  c.fill();
+}
+function paintHorizon(c, rnd) {
+  const base = horizonBase();
+  // 뒤 능선 + 그 아래 옅은 안개
+  c.fillStyle = '#0c1433';
+  c.beginPath(); c.moveTo(0, H);
+  for (let x = 0; x <= W + 8; x += 8) c.lineTo(x, backRidge(x));
+  c.lineTo(W + 8, H); c.closePath(); c.fill();
+  const mist = c.createLinearGradient(0, base - 110, 0, base);
+  mist.addColorStop(0, 'rgba(70,92,160,0)'); mist.addColorStop(1, 'rgba(70,92,160,0.22)');
+  c.fillStyle = mist; c.fillRect(0, base - 110, W, 110 + TASKBAR);
+  // 앞 능선, 소나무, 한옥
+  const ink = '#04060f';
+  c.fillStyle = ink;
+  c.beginPath(); c.moveTo(0, H);
+  for (let x = 0; x <= W + 6; x += 6) c.lineTo(x, frontRidge(x));
+  c.lineTo(W + 6, H); c.closePath(); c.fill();
+  const s = Math.max(0.75, Math.min(1.3, H / 1080));
+  const hx = W * (0.18 + 0.64 * rnd()), hw = 150 * s;
+  for (let x = rnd() * 40; x < W; x += (26 + rnd() * 70) * s) {
+    if (Math.abs(x - hx) < hw * 0.75) continue;                          // 한옥 자리는 비운다
+    if (rnd() < 0.3) continue;
+    drawPine(c, x, frontRidge(x) + 3, (16 + rnd() * 30) * s);
+  }
+  const gy = Math.max(frontRidge(hx - hw * 0.4), frontRidge(hx), frontRidge(hx + hw * 0.4)) + 2;
+  drawHanok(c, hx, gy, s);
+  // 창호에 켜진 불빛
+  const lit = [[-0.22, 13], [0.06, 13]];
+  for (const [fx, wdt] of lit) {
+    const lx = hx + hw * fx, ly = gy - 13 * s;
+    const glow = c.createRadialGradient(lx + wdt * s / 2, ly + 4 * s, 0, lx + wdt * s / 2, ly + 4 * s, 30 * s);
+    glow.addColorStop(0, 'rgba(255,196,110,0.32)'); glow.addColorStop(1, 'rgba(255,196,110,0)');
+    c.fillStyle = glow; c.fillRect(lx - 30 * s, ly - 30 * s, 60 * s + wdt * s, 60 * s);
+    c.fillStyle = '#ffc977'; c.fillRect(lx, ly, wdt * s, 9 * s);
+    c.fillStyle = ink; c.fillRect(lx + wdt * s / 2 - 0.6 * s, ly, 1.2 * s, 9 * s);   // 창살
+  }
+}
+function paintBg() {
+  const k = cv._scale, c = fit(bgC);
+  c.setTransform(k, 0, 0, k, 0, 0);
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  const sky = c.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#050817'); sky.addColorStop(0.5, '#0b1330'); sky.addColorStop(1, '#1a2453');
+  c.fillStyle = sky; c.fillRect(0, 0, W, H);
+  if (P.milky > 0) {
+    c.globalCompositeOperation = 'lighter'; c.globalAlpha = P.milky;
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+    c.drawImage(mwC, 0, 0, mwC.width * 4, mwC.height * 4);
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  }
+  // 별: 작은 별은 점으로, 밝은 별은 스프라이트로. 반짝이는 별은 매 프레임 따로 그린다(반짝임 0이면 여기서 굽는다)
+  const bakeTw = P.twinkle <= 0;
+  for (const s of stars) {
+    if (s.tw && !bakeTw) continue;
+    if (s.r < 0.8) {
+      c.fillStyle = rgba(STAR_COLORS[s.ci], Math.min(1, s.a * 1.1));
+      c.beginPath(); c.arc(s.x, s.y, s.r, 0, 6.283); c.fill();
+    } else {
+      const h = starHalf(s);
+      c.globalAlpha = s.a; c.drawImage(starSpr[s.ci], s.x - h, s.y - h, h * 2, h * 2); c.globalAlpha = 1;
+    }
+  }
+  if (P.showHorizon) paintHorizon(c, mulberry32(seed ^ 0x68e31da4));
+  bgOK = true;
+}
+
+/* ======================================================================
+   아이콘 층: 아이콘 뒤 별빛, 별자리 선, 달
+   ====================================================================== */
+let icons = [];
+let cstars = [], cstarsOld = [];                   // 빛줄기가 붙는 별자리 별 {x, y, ti, w, ph}
+const glyphPos = ic => ({ x: ic.x + ic.w / 2, y: ic.y + Math.min(ic.h * 0.36, 30) });
+function pickStars(pts) {                          // 간격 이상 떨어진 아이콘만 별자리 별로(시드마다 순서가 다르다)
+  const order = pts.map((p, i) => [hash2(Math.round(p.x), Math.round(p.y), 77), i]).sort((a, b) => a[0] - b[0]);
+  const out = [], d2 = P.spacing * P.spacing;
+  for (const [, i] of order) {
+    const p = pts[i];
+    if (out.every(q => (q.x - p.x) ** 2 + (q.y - p.y) ** 2 >= d2)) out.push(p);
+  }
+  return out;
+}
+// 선분이 사각형을 지나는 구간(t0~t1, 0~1). 지나지 않으면 null
+function segInRect(ax, ay, bx, by, r) {
+  let t0 = 0, t1 = 1;
+  const dx = bx - ax, dy = by - ay;
+  for (const [p, q] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dy, ay - r.y0], [dy, r.y1 - ay]]) {
+    if (p === 0) { if (q < 0) return null; continue; }
+    const t = q / p;
+    if (p < 0) { if (t > t1) return null; if (t > t0) t0 = t; }
+    else { if (t < t0) return null; if (t < t1) t1 = t; }
+  }
+  return [t0, t1];
+}
+const padRect = (ic, m) => ({ x0: ic.x - m, y0: ic.y - m, x1: ic.x + ic.w + m, y1: ic.y + ic.h + m });
+// 두 별 사이 선이 쓸 만한지: 다른 아이콘을 가로지르지 않고, 양끝 아이콘 밖으로 보이는 길이가 충분해야 한다
+function edgeOK(a, b, ics) {
+  for (const ic of ics) {
+    if (ic === a.ic || ic === b.ic) continue;
+    if (segInRect(a.x, a.y, b.x, b.y, padRect(ic, -4))) return false;
+  }
+  const ea = a.ic && segInRect(a.x, a.y, b.x, b.y, padRect(a.ic, 3)), eb = b.ic && segInRect(a.x, a.y, b.x, b.y, padRect(b.ic, 3));
+  const from = ea ? ea[1] : 0, to = eb ? eb[0] : 1;
+  return (to - from) * Math.hypot(b.x - a.x, b.y - a.y) >= 30;
+}
+// 별자리: 쓸 수 있는 변으로 최소 신장 트리를 만든 뒤, 짧은 변부터 이어 붙이되 한 별자리는 별 7개까지.
+// 별이 4개 이상인 별자리에는 고리를 하나 더해 국자·사각형 같은 모양이 나오게 한다
+function constellationEdges(st, ics) {
+  const n = st.length, edges = [];
+  if (n < 2) return edges;
+  const maxLen = P.spacing * 1.9, ok = new Map();
+  const usable = (i, j) => {
+    const key = i < j ? i * n + j : j * n + i;
+    if (!ok.has(key)) ok.set(key, Math.hypot(st[i].x - st[j].x, st[i].y - st[j].y) <= maxLen && edgeOK(st[i], st[j], ics));
+    return ok.get(key);
+  };
+  const inT = new Uint8Array(n), best = new Float64Array(n).fill(Infinity), from = new Int32Array(n).fill(-1);
+  for (let it = 0; it < n; it++) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!inT[i] && (u < 0 || best[i] < best[u])) u = i;
+    inT[u] = 1;
+    if (from[u] >= 0) edges.push([from[u], u, Math.sqrt(best[u])]);
+    for (let v = 0; v < n; v++) if (!inT[v]) {
+      const d = (st[u].x - st[v].x) ** 2 + (st[u].y - st[v].y) ** 2;
+      if (d < best[v] && usable(u, v)) { best[v] = d; from[v] = u; }
+    }
+  }
+  edges.sort((x, y) => x[2] - y[2]);
+  const par = st.map((_, i) => i), size = st.map(() => 1), find = i => par[i] === i ? i : (par[i] = find(par[i]));
+  const deg = new Int32Array(n), has = new Set(), kept = [];
+  for (const e of edges) {
+    const ra = find(e[0]), rb = find(e[1]);
+    if (size[ra] + size[rb] > 7) continue;
+    par[ra] = rb; size[rb] += size[ra];
+    kept.push(e); deg[e[0]]++; deg[e[1]]++; has.add(e[0] + ',' + e[1]); has.add(e[1] + ',' + e[0]);
+  }
+  const looped = new Set();
+  const cand = [];
+  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+    if (find(a) !== find(b) || size[find(a)] < 4 || has.has(a + ',' + b)) continue;
+    const d = Math.hypot(st[a].x - st[b].x, st[a].y - st[b].y);
+    if (d < P.spacing * 1.7 && usable(a, b)) cand.push([a, b, d]);
+  }
+  cand.sort((x, y) => x[2] - y[2]);
+  for (const [a, b, d] of cand) {
+    const r = find(a);
+    if (looped.has(r) || deg[a] > 2 || deg[b] > 2) continue;
+    looped.add(r); kept.push([a, b, d]); deg[a]++; deg[b]++;
+  }
+  return kept;
+}
+let moonPos = null;
+function moonSpot() {                              // 아이콘에서 가장 먼 하늘(위쪽 60%)
+  if (!P.adaptive || !icons.length) return { x: W * 0.8, y: H * 0.18 };
+  let best = null, bs = -1;
+  const rnd = mulberry32(seed ^ 0x1b873593);
+  for (let y = 70; y < H * 0.58; y += 36) for (let x = 90; x < W - 90; x += 36) {
+    let m = Infinity;
+    for (const ic of icons) {
+      const dx = Math.max(ic.x - x, 0, x - ic.x - ic.w), dy = Math.max(ic.y - y, 0, y - ic.y - ic.h);
+      m = Math.min(m, dx * dx + dy * dy);
+    }
+    const score = Math.min(Math.sqrt(m), 420) - y * 0.12 + rnd() * 24;
+    if (score > bs) { bs = score; best = { x, y }; }
+  }
+  return best || { x: W * 0.8, y: H * 0.18 };
+}
+function paintMoon(c) {
+  const { x, y } = moonPos, R = 26 * Math.max(0.8, Math.min(1.4, Math.min(W, H) / 1080));
+  const rnd = mulberry32(seed ^ 0x3c6ef372);
+  const halo = c.createRadialGradient(x, y, R * 0.6, x, y, R * 6);
+  halo.addColorStop(0, 'rgba(255,244,214,0.20)'); halo.addColorStop(0.35, 'rgba(255,244,214,0.06)'); halo.addColorStop(1, 'rgba(255,244,214,0)');
+  c.fillStyle = halo; c.fillRect(x - R * 6, y - R * 6, R * 12, R * 12);
+  c.fillStyle = 'rgba(214,222,255,0.10)';                                // 지구조: 어두운 쪽도 희미하게
+  c.beginPath(); c.arc(x, y, R, 0, 6.283); c.fill();
+  // 초승달: 밝은 원에서 비껴 놓은 원을 덜어 낸다
+  const k = cv._scale, s = Math.ceil(R * 2.4 * k), tc = mkCanvas();
+  tc.width = tc.height = s;
+  const t = tc.getContext('2d'), m = s / 2;
+  t.fillStyle = '#f7f1d8'; t.beginPath(); t.arc(m, m, R * k, 0, 6.283); t.fill();
+  t.fillStyle = 'rgba(160,150,120,0.16)';
+  for (let i = 0; i < 5; i++) { t.beginPath(); t.arc(m + (rnd() - 0.5) * R * k, m + (rnd() - 0.5) * R * k, (0.12 + rnd() * 0.2) * R * k, 0, 6.283); t.fill(); }
+  const a = (200 + rnd() * 50) * Math.PI / 180, off = (0.32 + rnd() * 0.22) * R * k;
+  t.globalCompositeOperation = 'destination-out'; t.fillStyle = '#000';
+  t.beginPath(); t.arc(m + Math.cos(a) * off, m + Math.sin(a) * off, R * k * 1.02, 0, 6.283); t.fill();
+  c.drawImage(tc, x - s / k / 2, y - s / k / 2, s / k, s / k);
+}
+// 빈 하늘에 놓는 별자리 별: 아이콘·달·능선을 피하고, 이미 있는 별과 간격을 둔다
+function pickSkyStars(taken, ics) {
+  const rnd = mulberry32(seed ^ 0x7f4a7c15), sp = P.spacing * 1.1, step = sp * 0.7, out = [], all = taken.slice();
+  for (let y = 30; y < H; y += step) for (let x = 20; x < W; x += step) {
+    const px = x + (rnd() - 0.5) * step * 0.9, py = y + (rnd() - 0.5) * step * 0.9;
+    if (rnd() < 0.3) continue;
+    const ground = P.showHorizon ? backRidge(px) - 26 : H - TASKBAR - 26;
+    if (py > ground || py < 14 || px < 14 || px > W - 14) continue;
+    if (P.showMoon && Math.hypot(px - moonPos.x, py - moonPos.y) < 90) continue;
+    if (ics.some(ic => px > ic.x - 36 && px < ic.x + ic.w + 36 && py > ic.y - 36 && py < ic.y + ic.h + 36)) continue;
+    if (all.some(q => (q.x - px) ** 2 + (q.y - py) ** 2 < sp * sp)) continue;
+    const p = { x: px, y: py, ti: Math.floor(rnd() * 3) };
+    out.push(p); all.push(p);
+  }
+  return out;
+}
+const glow = (c, p, r, a0, a1) => {
+  const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+  g.addColorStop(0, rgba(TINTS[p.ti], a0)); g.addColorStop(0.32, rgba(TINTS[p.ti], a1)); g.addColorStop(1, rgba(TINTS[p.ti], 0));
+  c.fillStyle = g; c.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+};
+const twinkleOf = p => ({ w: 0.35 + 0.5 * hash2(Math.round(p.x), 3, 9), ph: hash2(Math.round(p.y), 4, 9) * 6.283 });
+function paintIcons(c) {
+  cstars = [];
+  const ics = P.adaptive ? icons : [];
+  moonPos = moonSpot();
+  const pts = ics.map(ic => Object.assign(glyphPos(ic), { ic, ti: Math.floor(hash2(Math.round(ic.x), Math.round(ic.y), 5) * 3) }));
+  for (const p of pts) glow(c, p, 54, 0.2, 0.07);                         // 모든 아이콘 뒤에 은은한 별빛
+  const iconStars = pickStars(pts), skyStars = pickSkyStars(iconStars, ics), st = iconStars.concat(skyStars);
+  for (const p of iconStars) {                                            // 별자리로 뽑힌 아이콘은 더 밝게, 빛줄기도
+    glow(c, p, 72, 0.3, 0.1);
+    cstars.push(Object.assign({ x: p.x, y: p.y, ti: p.ti, sc: 1 }, twinkleOf(p)));
+  }
+  for (const p of skyStars) {                                             // 하늘의 별자리 별: 밝은 별 + 작은 빛줄기
+    glow(c, p, 22, 0.35, 0.08);
+    c.drawImage(starSpr[p.ti === 2 ? 4 : p.ti === 0 ? 2 : 1], p.x - 7, p.y - 7, 14, 14);
+    cstars.push(Object.assign({ x: p.x, y: p.y, ti: p.ti, sc: 0.42 }, twinkleOf(p)));
+  }
+  if (P.lines > 0 && st.length > 1) {
+    // 선은 아이콘 사각형 밖에서만 보이게 자른다(evenodd)
+    c.save();
+    c.beginPath(); c.rect(0, 0, W, H);
+    for (const ic of ics) c.rect(ic.x - 3, ic.y - 3, ic.w + 6, ic.h + 6);
+    c.clip('evenodd');
+    c.lineCap = 'round';
+    const edges = constellationEdges(st, ics);
+    for (const [w, a] of [[3.6, 0.14], [1.2, 0.8]]) {
+      c.lineWidth = w; c.strokeStyle = `rgba(178,200,255,${a * P.lines})`;
+      c.beginPath();
+      for (const [i, j] of edges) { c.moveTo(st[i].x, st[i].y); c.lineTo(st[j].x, st[j].y); }
+      c.stroke();
+    }
+    c.restore();
+  }
+  if (P.showMoon) paintMoon(c);
+  if (P.twinkle <= 0) for (const s of cstars) {                           // 반짝임 0: 빛줄기를 굽는다
+    c.globalAlpha = 0.75; c.drawImage(spikeSpr[s.ti], s.x - SPIKE_H * s.sc, s.y - SPIKE_V * s.sc, SPIKE_H * 2 * s.sc, SPIKE_V * 2 * s.sc); c.globalAlpha = 1;
+  }
+}
+function composeStatic(target) {
+  const k = cv._scale, c = fit(target);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  c.drawImage(bgC, 0, 0);
+  c.setTransform(k, 0, 0, k, 0, 0);
+  paintIcons(c);
+}
+
+/* ======================================================================
+   별똥별
+   ====================================================================== */
+const meteors = [];
+function stepMeteors(dt) {
+  for (const m of meteors) m.age += dt;
+  for (let i = meteors.length - 1; i >= 0; i--) if (meteors[i].age > meteors[i].life) meteors.splice(i, 1);
+  if (P.meteors <= 0 || meteors.length >= 2 || Math.random() > P.meteors / 60 * dt) return;
+  const side = Math.random() < 0.5 ? -1 : 1, ang = (22 + Math.random() * 34) * Math.PI / 180, sp = 650 + Math.random() * 420;
+  meteors.push({
+    x: W * (0.1 + Math.random() * 0.8), y: H * (0.04 + Math.random() * 0.42),
+    vx: Math.cos(ang) * sp * side, vy: Math.sin(ang) * sp,
+    len: 120 + Math.random() * 130, life: 0.45 + Math.random() * 0.45, age: 0,
+  });
+}
+function meteorGeom(m) {
+  const hx = m.x + m.vx * m.age, hy = m.y + m.vy * m.age, sp = Math.hypot(m.vx, m.vy);
+  const l = m.len * Math.min(1, m.age / 0.18);
+  return { hx, hy, tx: hx - m.vx / sp * l, ty: hy - m.vy / sp * l, a: Math.pow(Math.sin(Math.PI * Math.min(1, m.age / m.life)), 0.7) };
+}
+
+/* ======================================================================
+   그리기: 정적 그림 + 움직이는 작은 영역
+   ====================================================================== */
+let cacheOK = false, bgOK = false;
+let trans = null;                                   // 교차 페이드 {t0, dur}
+let lastRects = [];                                 // 지난 프레임에 스프라이트를 그린 사각형(캔버스 픽셀)
+let paused = false, frameN = 0;
+const T0 = performance.now();
+const ease = e => e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+function pxRect(x, y, w, h) {
+  const k = cv._scale, x0 = Math.max(0, Math.floor(x * k)), y0 = Math.max(0, Math.floor(y * k));
+  const x1 = Math.min(cv.width, Math.ceil((x + w) * k)), y1 = Math.min(cv.height, Math.ceil((y + h) * k));
+  return x1 > x0 && y1 > y0 ? [x0, y0, x1 - x0, y1 - y0] : null;
+}
+function draw(now) {
+  const k = cv._scale, t = (now - T0) / 1000;
+  ensureSprites(k);
+  let full = false;
+  if (!cacheOK) {                                   // 처음, 크기 변경, share.js의 캡처: 전부 다시
+    buildMilky(); buildStars(); paintBg(); composeStatic(statC);
+    trans = null; cacheOK = true; full = true;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  let eNew = 1;
+  if (trans) {
+    eNew = ease(Math.min((now - trans.t0) / trans.dur, 1));
+    ctx.drawImage(statC, 0, 0);
+    ctx.globalAlpha = eNew; ctx.drawImage(nextC, 0, 0); ctx.globalAlpha = 1;
+    if (eNew >= 1) { const tmp = statC; statC = nextC; nextC = tmp; trans = null; cstarsOld = []; }
+  } else if (full) ctx.drawImage(statC, 0, 0);
+  else for (const [x, y, w, h] of lastRects) ctx.drawImage(statC, x, y, w, h, x, y, w, h);
+
+  const rects = [];
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  if (P.twinkle > 0) {
+    // 반짝이는 별: 대부분은 고르게 빛나다가 가끔 흐려진다
+    for (const s of stars) {
+      if (!s.tw) continue;
+      const f = Math.pow(0.5 + 0.5 * Math.sin(t * s.w + s.ph), 3) * 0.7 + (0.5 + 0.5 * Math.sin(t * s.w * 2.7 + s.ph * 1.7)) * 0.3;
+      const h = starHalf(s);
+      ctx.globalAlpha = s.a * (1 - P.twinkle * 0.85 * f);
+      ctx.drawImage(starSpr[s.ci], s.x - h, s.y - h, h * 2, h * 2);
+      const r = pxRect(s.x - h - 1, s.y - h - 1, h * 2 + 2, h * 2 + 2); if (r) rects.push(r);
+    }
+    // 별자리 별의 빛줄기: 천천히 숨 쉬듯
+    const spikes = (list, alpha) => {
+      for (const s of list) {
+        const b = 0.5 + 0.5 * Math.sin(t * s.w + s.ph), sc = (0.82 + 0.18 * b) * s.sc;
+        ctx.globalAlpha = alpha * (1 - P.twinkle * 0.55 + P.twinkle * 0.55 * b);
+        ctx.drawImage(spikeSpr[s.ti], s.x - SPIKE_H * sc, s.y - SPIKE_V * sc, SPIKE_H * 2 * sc, SPIKE_V * 2 * sc);
+        const r = pxRect(s.x - SPIKE_H * s.sc - 1, s.y - SPIKE_V * s.sc - 1, SPIKE_H * 2 * s.sc + 2, SPIKE_V * 2 * s.sc + 2); if (r) rects.push(r);
+      }
+    };
+    if (trans) spikes(cstarsOld, 1 - eNew);
+    spikes(cstars, eNew);
+  }
+  ctx.globalAlpha = 1;
+  for (const m of meteors) {
+    const g = meteorGeom(m);
+    ctx.lineCap = 'round';
+    for (const [lw, a, col] of [[4.5, 0.2, '190,215,255'], [1.8, 0.95, '255,255,255']]) {   // 흐린 꼬리 + 밝은 심
+      const lg = ctx.createLinearGradient(g.tx, g.ty, g.hx, g.hy);
+      lg.addColorStop(0, `rgba(${col},0)`); lg.addColorStop(1, `rgba(${col},${a * g.a})`);
+      ctx.strokeStyle = lg; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(g.tx, g.ty); ctx.lineTo(g.hx, g.hy); ctx.stroke();
+    }
+    ctx.globalAlpha = g.a; ctx.drawImage(starSpr[0], g.hx - 9, g.hy - 9, 18, 18); ctx.globalAlpha = 1;
+    const r = pxRect(Math.min(g.hx, g.tx) - 11, Math.min(g.hy, g.ty) - 11, Math.abs(g.hx - g.tx) + 22, Math.abs(g.hy - g.ty) + 22);
+    if (r) rects.push(r);
+  }
+  ctx.globalAlpha = 1;
+  lastRects = rects;
+}
+
+// 아이콘·설정이 바뀌면 새 정적 그림을 만들어 교차 페이드한다
+function commit(first = false) {
+  if (!cacheOK) return;                             // 다음 draw()에서 어차피 전부 새로 그린다
+  if (trans) {                                      // 페이드 도중이면 지금 섞인 상태를 옛 그림으로 굳힌다
+    const e = ease(Math.min((performance.now() - trans.t0) / trans.dur, 1));
+    const c = statC.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = e; c.drawImage(nextC, 0, 0); c.globalAlpha = 1;
+    if (e > 0.5) cstarsOld = cstars;
+  } else cstarsOld = cstars;
+  if (!bgOK) { buildMilky(); buildStars(); paintBg(); }
+  composeStatic(nextC);
+  trans = { t0: performance.now(), dur: first ? 2200 : 1200 };
+}
+
+/* ======================================================================
+   메인 루프
+   ====================================================================== */
+let lastT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { lastT = 0; return; }
+  if (P.cap30 && now - lastT < 31) return;
+  const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
+  lastT = now; frameN++;
+  stepMeteors(dt);
+  draw(now);
+}
+
+/* ======================================================================
+   설정·호스트 메시지
+   ====================================================================== */
+let iconsSeen = !(WALL || PREVIEW);
+function reseed(v) {
+  seed = v; bgOK = false;
+  if (iconsSeen) commit(true);
+}
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
+  let changed = false;
+  for (const key in v) {
+    if ((!SLIDER_KEYS.includes(key) && !DISPLAY_KEYS.includes(key)) || typeof v[key] !== typeof P[key] || P[key] === v[key]) continue;
+    if (DISPLAY_KEYS.includes(key) && v[key] !== 0 && v[key] !== 1) continue;
+    P[key] = v[key];
+    if (BG_KEYS.includes(key)) { bgOK = false; changed = true; }
+    if (ICON_KEYS.includes(key)) changed = true;
+  }
+  if (changed) commit();
+}
+function drawGhosts() {
+  document.getElementById('ghosts').innerHTML = icons.map(ic =>
+    `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+function startHostedMode() {
+  if (PREVIEW) document.body.classList.add('ghosts');
+  let first = true;
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : !!m.v; return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;       // 물리 픽셀 → CSS 픽셀
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
+    if (PREVIEW) drawGhosts();
+    iconsSeen = true;
+    commit(first);
+    first = false;
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+
+// 단독으로 열었을 때: 예시 아이콘(끌어서 옮길 수 있음)과 단축키
+function startDemo() {
+  document.body.classList.add('ghosts', 'demo');
+  const cell = (c, r) => ({ x: 4 + c * 76, y: 6 + r * 100, w: 76, h: 92 });
+  const rows = Math.max(1, Math.floor((H - TASKBAR - 6) / 100));
+  for (let c = 0; c < 3; c++) for (let r = 0; r < rows; r++) icons.push(cell(c, r));
+  for (const [c, r] of [[6, 0], [6, 1], [7, 3], [8, 3], [8, 4], [12, 1], [13, 1], [14, 1], [13, 2], [20, 0], [21, 0], [19, 5], [20, 5]])
+    if (c * 76 < W - 80 && r < rows) icons.push(cell(c, r));
+  drawGhosts();
+  let drag = null;
+  addEventListener('pointerdown', e => {
+    const ic = icons.find(i => e.clientX >= i.x && e.clientX < i.x + i.w && e.clientY >= i.y && e.clientY < i.y + i.h);
+    if (ic) drag = { ic, dx: e.clientX - ic.x, dy: e.clientY - ic.y };
+  });
+  addEventListener('pointermove', e => { if (drag) { drag.ic.x = e.clientX - drag.dx; drag.ic.y = e.clientY - drag.dy; drawGhosts(); } });
+  addEventListener('pointerup', () => { if (drag) { drag = null; commit(); } });
+  addEventListener('keydown', e => {
+    if (e.key === 'r' || e.key === 'R') reseed((Math.random() * 1e6) | 0);
+    else if (e.key === 'm' || e.key === 'M') applySettings({ showMoon: 1 - P.showMoon });
+    else if (e.key === 'l' || e.key === 'L') applySettings({ lines: P.lines > 0 ? 0 : DEFAULTS.lines });
+  });
+}
+
+let resizeT = 0;
+addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { resize(); }, 100); });
+
+window.__dbg = {
+  P,
+  bench() {                                         // 정적 그림을 다시 만드는 시간과 한 프레임 시간
+    const a = performance.now(); mwKey = ''; starsKey = ''; cacheOK = false; draw(performance.now());
+    const b = performance.now(); draw(performance.now()); const c = performance.now();
+    return { rebuild: +(b - a).toFixed(1), frame: +(c - b).toFixed(2), canvas: cv.width + 'x' + cv.height, stars: stars.length, sprites: lastRects.length };
+  },
+};
+resize();
+if (WALL || PREVIEW) startHostedMode(); else startDemo();
+requestAnimationFrame(frame);
+</script>
+<script src="share.js"></script>   <!-- 이미지·영상 공유(예시 아이콘, 이름은 색 블록) -->
+</body>
+</html>

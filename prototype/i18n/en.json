@@ -199,6 +199,58 @@
           ]
         }
       }
+    },
+    "starry": {
+      "name": "Constellations",
+      "desc": "Your icons become stars, nearby stars join into constellations, and the Milky Way arcs over a lit hanok on the ridge",
+      "groups": [
+        "Constellations",
+        "Night sky",
+        "Details"
+      ],
+      "params": {
+        "spacing": {
+          "label": "Constellation spacing",
+          "hint": "Minimum distance between the stars that form constellations; larger is sparser"
+        },
+        "lines": {
+          "label": "Line brightness",
+          "hint": "How bright the constellation lines are; 0 hides them"
+        },
+        "density": {
+          "label": "Star density",
+          "hint": "How many stars fill the night sky"
+        },
+        "twinkle": {
+          "label": "Twinkle",
+          "hint": "How strongly the stars twinkle; 0 keeps them still"
+        },
+        "milky": {
+          "label": "Milky Way",
+          "hint": "How bright the Milky Way is; 0 hides it"
+        },
+        "meteors": {
+          "label": "Shooting stars",
+          "hint": "About how many shooting stars cross the sky each minute; 0 turns them off",
+          "unit": "per min"
+        },
+        "showMoon": {
+          "label": "Show moon",
+          "hint": "The moon rises in the part of the sky with the fewest icons",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "showHorizon": {
+          "label": "Show ridge",
+          "hint": "Hills, pines and a lit hanok along the bottom edge",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        }
+      }
     }
   }
 }

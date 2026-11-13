@@ -173,6 +173,114 @@
           ]
         }
       ]
+    },
+    {
+      "id": "starry",
+      "adaptive": true,
+      "name": "星座",
+      "desc": "图标化作夜空里的星星，相邻的星星连成星座，银河横过天际，山脊上的韩屋亮着灯",
+      "page": "starry.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/starry.webp?v=0fad6105af) center / cover no-repeat, linear-gradient(160deg, #050817 0%, #0b1330 55%, #1a2453 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "星座",
+          "params": [
+            {
+              "key": "spacing",
+              "label": "星座间距",
+              "hint": "连成星座的星星之间至少隔多远，越大星座越疏朗",
+              "min": 110,
+              "max": 360,
+              "step": 1,
+              "default": 180,
+              "unit": "px"
+            },
+            {
+              "key": "lines",
+              "label": "连线亮度",
+              "hint": "星座连线有多亮，设为 0 可隐藏",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.55,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "夜空",
+          "params": [
+            {
+              "key": "density",
+              "label": "星星数量",
+              "hint": "夜空里星星的多少",
+              "min": 0.3,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "twinkle",
+              "label": "闪烁",
+              "hint": "星星闪烁的明显程度，设为 0 时不闪烁",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.6,
+              "format": "percent"
+            },
+            {
+              "key": "milky",
+              "label": "银河",
+              "hint": "横过夜空的银河有多亮，设为 0 可隐藏",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.7,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "元素",
+          "params": [
+            {
+              "key": "meteors",
+              "label": "流星",
+              "hint": "每分钟大约划过几颗流星，设为 0 不出现",
+              "min": 0,
+              "max": 10,
+              "step": 1,
+              "default": 3,
+              "unit": "颗/分"
+            },
+            {
+              "key": "showMoon",
+              "label": "显示月亮",
+              "hint": "月亮挂在图标最少的那片天空",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "showHorizon",
+              "label": "显示山脊",
+              "hint": "画面底部的山脊、松树和亮着灯的韩屋",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            }
+          ]
+        }
+      ]
     }
   ]
 }

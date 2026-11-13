@@ -10,16 +10,18 @@ Madang은 바탕화면을 하나의 마당처럼 만듭니다. 아이콘을 옮�
 
 > Madang은 [Deskland Preview](https://github.com/BLEZZ0102/Deskland)(GPL-3.0)를 바탕으로 한 **독립 프로젝트**입니다. Deskland 원작자와 관계가 없으며 승인이나 보증을 받지 않았습니다. 자세한 내용은 [NOTICE](NOTICE)와 [TRADEMARKS.md](TRADEMARKS.md)를 보세요.
 
+![별자리](docs/images/starry.webp)
+
 ![초원](docs/images/meadow.webp)
 
 ![해변](docs/images/beach.webp)
 
 ## 포함된 테마
 
-| 해변 | 초원 |
-| --- | --- |
-| ![해변 테마](prototype/thumbs/beach.webp) | ![초원 테마](prototype/thumbs/meadow.webp) |
-| 청록빛 파도, 카약, 바닷새와 야자수. | 흘러가는 구름과 그림자, 연 날리는 아이와 작은 검은 고양이. |
+| 별자리 | 해변 | 초원 |
+| --- | --- | --- |
+| ![별자리 테마](prototype/thumbs/starry.webp) | ![해변 테마](prototype/thumbs/beach.webp) | ![초원 테마](prototype/thumbs/meadow.webp) |
+| 아이콘이 별이 되고 가까운 별끼리 별자리로 이어지는 밤하늘. 은하수, 별똥별, 아이콘이 적은 쪽 하늘에 뜨는 초승달, 능선 위 불 켜진 한옥. Madang 자체 테마. | 청록빛 파도, 카약, 바닷새와 야자수. | 흘러가는 구름과 그림자, 연 날리는 아이와 작은 검은 고양이. |
 
 ## 앞으로 할 일
 
@@ -88,6 +90,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 | `host/` | Windows 호스트, 빌드 스크립트, 앱 매니페스트, 아이콘 |
 | `prototype/flat.html` | 해변 테마 |
 | `prototype/meadow.html` | 초원 테마 |
+| `prototype/starry.html` | 별자리 테마 |
 | `prototype/settings.html` | 설정 화면 |
 | `prototype/themes.json` | 테마 정의와 기본값 |
 | `prototype/i18n/` | 화면 문구 (한국어, 영어, 간체 중국어) |
@@ -114,7 +117,7 @@ Madang ("courtyard" in Korean) turns the space around your icons into a living l
 
 > Madang is an **independent project** based on [Deskland Preview](https://github.com/BLEZZ0102/Deskland) (GPL-3.0). It is not affiliated with, approved or endorsed by the Deskland authors. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
-- **Themes:** Beach and Meadow, with every setting saved between sessions.
+- **Themes:** Constellations (Madang's own night sky, where your icons become stars), Beach and Meadow, with every setting saved between sessions.
 - **Languages:** Korean, English and Simplified Chinese, following the Windows display language by default.
 - **Planned:** original new themes, multi-monitor support.
 - **Requirements:** 64-bit Windows 10/11 and the Microsoft Edge WebView2 Runtime. Building uses the C# compiler bundled with Windows.
